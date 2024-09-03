@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>XR Collaboration</title>
+    <style>
+      body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    </style>
+  </head>
+
+  <script type="module">
+    import { io } from "socket.io-client";
+    import * as THREE from 'three';
+    import { VRButton } from 'three/addons/webxr/VRButton.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    var userName = prompt("Please enter your name");
+
+    // Create a socket
+    var socket = io("http://localhost:3000", {
+      reconnectionDelayMax: 10000 ,
+      auth: {
+        token: "123"
+      },
+      query: {
+        "userName":  userName
+      } 
+    });
+    
+   
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color( 0x444444 );
+
+      const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+      const renderer = new THREE.WebGLRenderer();
+      renderer.setPixelRatio( window.devicePixelRatio );
+      renderer.setSize( window.innerWidth, window.innerHeight );
+      renderer.xr.enabled = true;
+
+      // Flag to know if a VR session has started
+      // console.log(renderer.xr.isPresenting);
+
+      document.body.appendChild( renderer.domElement );
+      document.body.appendChild( VRButton.createButton( renderer ) );
+
+      const controls = new OrbitControls( camera, renderer.domElement );
+      
+      // Trigger event when a not XR camera is being manipulated
+      controls.addEventListener( 'change', noXRCameraUpdate );
+      function noXRCameraUpdate (){
+        socket.emit( 'updateCamera', { userName: userName,
+          x: camera.position.x,
+          y: camera.position.y,
+          z: camera.position.z,
+        lx: camera.rotation.x,
+      ly: camera.rotation.y,
+    lz: camera.rotation.z } 
+        );
+      }
+
+      // Trigger event when a XR session is started
+      renderer.xr.addEventListener( 'sessionstart', function ( event ) {
+        controls.dispose();
+      } ); 
+ 
+
+      const geometry = new THREE.BoxGeometry( 1, 1, 1 );
+      const material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+      const cube = new THREE.Mesh( geometry, material );
+      scene.add( cube );
+
+      camera.position.z = 5;
+    
+
+    function animate() {
+      //requestAnimationFrame( animate );
+      renderer.setAnimationLoop( render );
+  
+    }
+
+    function render() {
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
+      controls.update();
+
+      renderer.render( scene, camera );
+    }
+
+
+    animate();
+
+    window.addEventListener( 'resize', onWindowResize );
+    
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+
+    // Behavior when receives CreateCamera msg
+    socket.on( 'createCamera', function( msg ) {
+      // msg is the userNamer
+      console.log( msg );
+      let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+      scene.add(userCamera);
+      let cameraHelper = new THREE.CameraHelper( userCamera );
+      cameraHelper.name = msg;
+      scene.add( cameraHelper );
+    });
+
+    // Behavior when a user connects
+    socket.on( 'userConnected', function( msg ) {
+      console.log( msg );
+    });
+
+    // Behavior when a user disconnects
+    socket.on( 'userDisconnected', function( msg ) {
+      console.log( msg + ' has disconnected' );
+      let tempCameraHelper = scene.getObjectByName( msg );
+      if( tempCameraHelper !== null ){
+        let tempCamera = tempCameraHelper.camera;
+        scene.remove( tempCameraHelper );
+        tempCameraHelper.dispose();
+        scene.remove( tempCamera );
+      }
+    });
+
+      socket.on( 'updateCamera', function( msg ){
+      let tempCameraHelper = scene.getObjectByName( msg.userName );
+      console.log(tempCameraHelper);
+      tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
+      //tempCameraHelper.position.set(msg.x, msg.y, msg.z);
+      tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
+     // tempCameraHelper.rotation.set(msg.lx, msg.ly, msg.lz);
+      tempCameraHelper.camera.updateProjectionMatrix();
+      tempCameraHelper.update();
+    });   
+
+    // Emit Creating Camera
+    socket.emit( 'createCamera', userName );
+    
+    // Check existing users and add their cameras - only happens one time
+    socket.once( 'checkWhosOnline', function( msg ){
+      if( msg.length > 0 ){
+        for( let k=0; k<msg.length; k++ ){
+          let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+          let cameraHelper = new THREE.CameraHelper( userCamera );
+          cameraHelper.name = msg[k];
+          scene.add(userCamera);
+          scene.add( cameraHelper );
+        }
+        console.log('Added '+msg.length+' Cameras')
+      }
+    });
+
+
+
+
+
+  
+  </script>
+
+  <body>
+
+  </body>
+</html>
