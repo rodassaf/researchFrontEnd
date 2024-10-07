@@ -1,0 +1,10 @@
+body { 
+    margin: 0; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+}
+
+.tp-dfwv { /* This is the default class for the pane */
+    position: absolute;
+    top: 1% !important;  
+    left: 1%;  
+}
