@@ -24,11 +24,18 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
+var glbScene, morphFolder;
+
 // Create a UI Pane
 const pane = new Pane({
-    title: 'XR Collaboration',
     expanded: true,
   });
+// Create User Folder to show users
+const userFolder = pane.addFolder({
+    title: 'Online Users',
+  });
+
+
 // Instantiate a loader
 const loader = new GLTFLoader();
 
@@ -58,7 +65,7 @@ function init() {
         function ( gltf ) {
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
-            gltf.scene; // THREE.Group
+            glbScene = gltf.scene; // THREE.Group
             gltf.scenes; // Array<THREE.Group>
             gltf.cameras; // Array<THREE.Camera>
             gltf.asset; // Object
@@ -155,7 +162,9 @@ function render() {
   renderer.render( scene, camera );
 }
 
-
+// Initializate Scene
+init();
+animate();
 
 // Windows Behaviour *****************************************
 
@@ -177,11 +186,12 @@ function createGUI( model, animations) {
     let objectOptions = {
         none: 'none',
     };
-    let morphNameTargets = [];
     // Create object to bind with UI and be the Final VALUE
     let currentObjectSelection = {
         morphObject: 'none',
     };
+    let morphNameTargets = [];
+
 
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
@@ -204,17 +214,18 @@ function createGUI( model, animations) {
   
     if( objectsWithMorphTargets.length > 0 ) {
         // Create Morph Folder
-        const morphFolder = pane.addFolder({
+        morphFolder = pane.addFolder({
             title: 'Morph Targets',
           });
 
         // Add a Blade
         morphFolder.addBinding(currentObjectSelection, 'morphObject', {
             options: objectOptions,
-          });
+          }); 
 
         // Event Handler for Morph Pane
         morphFolder.on( 'change', function( ev ) {
+
             if( isNaN( ev.value ) === true ){
                 // Object List changed
                 currentObjectSelection.morphObject = ev.value;
@@ -224,6 +235,8 @@ function createGUI( model, animations) {
                     for( let i = morphFolder.children.length-1; i > 0; i-- ) {
                         morphFolder.children[i].dispose();
                     }   
+                    // Emit change of the object to none
+                    socket.emit( 'onObjectMorphChange', ev.value );
                     return;
                 }
                 // Clear NameTargets
@@ -231,7 +244,7 @@ function createGUI( model, animations) {
                 // Feed the object of Morph Targets by getting the list of strings and associate the values
                 morphNameTargets = Object.keys( model.getObjectByName( ev.value ).morphTargetDictionary  ) ;
                 
-                // Reset UI from Last to second
+                // Reset UI from Last item until the second one
                 if( morphFolder.children.length > 1 ){
                     for( let i = morphFolder.children.length-1; i > 0; i-- ) {
                         morphFolder.children[i].dispose();
@@ -242,16 +255,20 @@ function createGUI( model, animations) {
                 for( let i = 0; i < morphNameTargets.length; i++ ){
                     morphFolder.addBlade({
                         view: 'slider',
-                        label: morphNameTargets[i],
+                        label: morphNameTargets[ i ],
                         min: 0,
                         max: 1,
-                        value: model.getObjectByName( ev.value ).morphTargetInfluences[i],
+                        value: model.getObjectByName( ev.value ).morphTargetInfluences[ i ],
                     });
                 } 
-
+                // Emit change of the object
+                socket.emit( 'onObjectMorphChange', ev.value );
             } else {
                 // Sliders changed
                 model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+                // Emit Morph Target Slider Info
+                socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
+                console.log(ev.value)
             }
           });
     }
@@ -264,10 +281,25 @@ socket.on( 'createCamera', function( msg ) {
     // msg is the userNamer
     console.log( msg );
     let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-    scene.add(userCamera);
+    scene.add( userCamera );
     let cameraHelper = new THREE.CameraHelper( userCamera );
     cameraHelper.name = msg;
     scene.add( cameraHelper );
+});
+
+// Behavior when receives morph target new values
+socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
+//glbScene.getObjectByName(  "Head_4" ).morphTargetInfluences[ morphTarget ] = value ;
+   //  console.log(morphFolder.children[ morphTarget+1 ])
+    morphFolder.children[ morphTarget+1 ].setValue (value);
+   // console.log( morphTarget+ "  "+ value)
+});
+
+// Behavior when receives object morph changes
+socket.on( 'onObjectMorphChange', function( value ) {
+    console.log(value);
+    morphFolder.children[0].controller.value.rawValue = value;
+    //currentObjectSelection.morphObject = value;
 });
 
 // Behavior when a user connects
@@ -276,7 +308,7 @@ socket.on( 'userConnected', function( msg ) {
     
     // Add online users connected to the pane but not the current user
     if( msg !== userName ) {
-        pane.addBlade({
+        userFolder.addBlade({
         view: 'text',
         label: 'user',
         parse: ( v ) => String( v ),
@@ -297,13 +329,13 @@ socket.on( 'userDisconnected', function( msg ) {
     }
 
     // Find the 'name' blade and remove it
-    let bladeDisposal = findBladeByLabel( pane, msg );
+    let bladeDisposal = findBladeByLabel( userFolder, msg );
     bladeDisposal.dispose();
 });
 
 socket.on( 'updateCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
-    console.log(tempCameraHelper);
+   // console.log(tempCameraHelper);
     tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
     //tempCameraHelper.position.set(msg.x, msg.y, msg.z);
     tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
@@ -318,7 +350,7 @@ socket.emit( 'createCamera', userName );
 // Check existing users and add their cameras - only happens one time
 socket.once( 'checkWhosOnline', function( msg ){
     // Add current user to the pane
-    pane.addBlade({
+    userFolder.addBlade({
     view: 'text',
     label: 'user (me)',
     parse: ( v ) => String( v ),
@@ -335,7 +367,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             scene.add( cameraHelper );
             
             // Add online users connected to the pane
-            pane.addBlade({
+            userFolder.addBlade({
                 view: 'text',
                 label: 'user',
                 parse: ( v ) => String( v ),
@@ -344,9 +376,4 @@ socket.once( 'checkWhosOnline', function( msg ){
         }
         console.log('Added '+msg.length+' Cameras')
     }
-
-    // Initializate Scene
-    init();
-    animate();
-
 });
