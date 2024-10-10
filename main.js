@@ -24,7 +24,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
-var glbScene, morphFolder;
+var morphFolder, sliderMorphs=[];
 
 // Create a UI Pane
 const pane = new Pane({
@@ -34,6 +34,7 @@ const pane = new Pane({
 const userFolder = pane.addFolder({
     title: 'Online Users',
   });
+
 
 
 // Instantiate a loader
@@ -65,7 +66,6 @@ function init() {
         function ( gltf ) {
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
-            glbScene = gltf.scene; // THREE.Group
             gltf.scenes; // Array<THREE.Group>
             gltf.cameras; // Array<THREE.Camera>
             gltf.asset; // Object
@@ -224,52 +224,52 @@ function createGUI( model, animations) {
           }); 
 
         // Event Handler for Morph Pane
-        morphFolder.on( 'change', function( ev ) {
+        morphFolder.on( 'change', function( ev ) {            
+                if( isNaN( ev.value ) === true ){
+                    // Object List changed
+                    currentObjectSelection.morphObject = ev.value;
+                    
+                    // Clear if it is NONE
+                    if (ev.value === 'none'){
+                        for( let i = morphFolder.children.length-1; i > 0; i-- ) {
+                            morphFolder.children[i].dispose();
+                        }   
+                        // Emit change of the object to none
+                        socket.emit( 'onObjectMorphChange', ev.value );
+                        return;
+                    }
+                    // Clear NameTargets
+                    morphNameTargets = [];
+                    // Feed the object of Morph Targets by getting the list of strings and associate the values
+                    morphNameTargets = Object.keys( model.getObjectByName( ev.value ).morphTargetDictionary  ) ;
+                    
+                    // Reset UI from Last item until the second one
+                    if( morphFolder.children.length > 1 ){
+                        for( let i = morphFolder.children.length-1; i > 0; i-- ) {
+                            morphFolder.children[i].dispose();
+                        }    
+                    }
 
-            if( isNaN( ev.value ) === true ){
-                // Object List changed
-                currentObjectSelection.morphObject = ev.value;
-                
-                // Clear if it is NONE
-                if (ev.value === 'none'){
-                    for( let i = morphFolder.children.length-1; i > 0; i-- ) {
-                        morphFolder.children[i].dispose();
-                    }   
-                    // Emit change of the object to none
+                    // Create the UI
+                    for( let i = 0; i < morphNameTargets.length; i++ ){
+                        sliderMorphs[ i ] = {};
+                        sliderMorphs[ i ][ morphNameTargets [ i ] ] = model.getObjectByName( ev.value ).morphTargetInfluences[ i ];
+                        morphFolder.addBinding( sliderMorphs[ i ], morphNameTargets [ i ], {
+                                min: 0,
+                                max: 1,
+                        });
+                    } 
+                    // Emit change of the object
                     socket.emit( 'onObjectMorphChange', ev.value );
-                    return;
+                } else {
+                    if( ev.last !== true ){
+                        // Sliders changed
+                        model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+                        // Emit Morph Target Slider Info
+                        socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
+                        console.log(ev.value)
+                    }
                 }
-                // Clear NameTargets
-                morphNameTargets = [];
-                // Feed the object of Morph Targets by getting the list of strings and associate the values
-                morphNameTargets = Object.keys( model.getObjectByName( ev.value ).morphTargetDictionary  ) ;
-                
-                // Reset UI from Last item until the second one
-                if( morphFolder.children.length > 1 ){
-                    for( let i = morphFolder.children.length-1; i > 0; i-- ) {
-                        morphFolder.children[i].dispose();
-                    }    
-                }
-
-                // Create the UI
-                for( let i = 0; i < morphNameTargets.length; i++ ){
-                    morphFolder.addBlade({
-                        view: 'slider',
-                        label: morphNameTargets[ i ],
-                        min: 0,
-                        max: 1,
-                        value: model.getObjectByName( ev.value ).morphTargetInfluences[ i ],
-                    });
-                } 
-                // Emit change of the object
-                socket.emit( 'onObjectMorphChange', ev.value );
-            } else {
-                // Sliders changed
-                model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
-                // Emit Morph Target Slider Info
-                socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
-                console.log(ev.value)
-            }
           });
     }
 }
@@ -289,10 +289,12 @@ socket.on( 'createCamera', function( msg ) {
 
 // Behavior when receives morph target new values
 socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
-//glbScene.getObjectByName(  "Head_4" ).morphTargetInfluences[ morphTarget ] = value ;
-   //  console.log(morphFolder.children[ morphTarget+1 ])
-    morphFolder.children[ morphTarget+1 ].setValue (value);
-   // console.log( morphTarget+ "  "+ value)
+    
+    let key = Object.keys(sliderMorphs[ morphTarget ])
+    if( sliderMorphs[ morphTarget ][ key ] !== value ){
+        sliderMorphs[ morphTarget ][ key ] = value;
+        pane.refresh();
+    }
 });
 
 // Behavior when receives object morph changes
