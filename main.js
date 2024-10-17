@@ -24,7 +24,12 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
-var morphFolder, sliderMorphs=[];
+
+// UI variables
+var morphFolder, animationFolder, sliderMorphs=[];
+
+// Create an AnimationMixer and a clock for animation purposes
+var mixer, clock;
 
 // Create a UI Pane
 const pane = new Pane({
@@ -35,11 +40,10 @@ const userFolder = pane.addFolder({
     title: 'Online Users',
   });
 
-
-
 // Instantiate a loader
 const loader = new GLTFLoader();
 
+// Start 3D scene
 function init() { 
     scene.background = new THREE.Color( 0x444444 );
     renderer.setPixelRatio( window.devicePixelRatio );
@@ -54,6 +58,9 @@ function init() {
     const dirLight = new THREE.DirectionalLight( 0xffffff, 3 );
     dirLight.position.set( 0, 20, 10 );
     scene.add( dirLight );
+
+    // Create a clock
+    clock = new THREE.Clock();
 
     // Flag to know if a VR session has started
     // console.log(renderer.xr.isPresenting);
@@ -153,13 +160,16 @@ function noXRCameraUpdate () {
 }
 
 function animate() {
-  //requestAnimationFrame( animate );
-  renderer.setAnimationLoop( render );
+    //requestAnimationFrame( animate );
+    renderer.setAnimationLoop( render );
 }
 
 function render() {
-  controls.update();
-  renderer.render( scene, camera );
+    
+    let dt = clock.getDelta();
+    if ( mixer ) mixer.update( dt );
+    controls.update();
+    renderer.render( scene, camera );
 }
 
 // Initializate Scene
@@ -191,7 +201,22 @@ function createGUI( model, animations) {
         morphObject: 'none',
     };
     let morphNameTargets = [];
-
+    // Create object to bind with ui options
+    let animationOptions = {
+        none: 'none',
+    };
+    // Create animation object to bind ui
+    let animationClipObject = {
+        clip: 'none',
+      };
+    
+    // Create animation loop boolean object to bind ui
+    let animationLoop = {
+        loop: false,
+      };
+    // Action
+    let action;
+    
 
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
@@ -208,10 +233,11 @@ function createGUI( model, animations) {
     );
 
     // Feed the binded object for options
-    for(  let i = 0; i < objectsWithMorphTargets.length; i++  ){
+    for( let i = 0; i < objectsWithMorphTargets.length; i++ ){
         objectOptions[objectsWithMorphTargets[i]] = objectsWithMorphTargets[i];
     }
   
+    // If there is morph target
     if( objectsWithMorphTargets.length > 0 ) {
         // Create Morph Folder
         morphFolder = pane.addFolder({
@@ -255,8 +281,8 @@ function createGUI( model, animations) {
                         sliderMorphs[ i ] = {};
                         sliderMorphs[ i ][ morphNameTargets [ i ] ] = model.getObjectByName( ev.value ).morphTargetInfluences[ i ];
                         morphFolder.addBinding( sliderMorphs[ i ], morphNameTargets [ i ], {
-                                min: 0,
-                                max: 1,
+                            min: 0,
+                            max: 1,
                         });
                     } 
                     // Emit change of the object
@@ -267,11 +293,96 @@ function createGUI( model, animations) {
                         model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
                         // Emit Morph Target Slider Info
                         socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
-                        console.log(ev.value)
+                        console.log( ev.value )
                     }
                 }
           });
     }
+
+    // If there are animations
+    if ( animations.length > 0 ) {
+
+        // Create an AnimationMixer, and get the list of AnimationClip instances
+        mixer = new THREE.AnimationMixer( model );
+
+        // Feed the binded object for options
+        for( let i = 0; i < animations.length; i++ ){
+            animationOptions[animations[i].name] = animations[i].name;
+        }
+
+        // Create UI Pane
+        animationFolder = pane.addFolder({
+            title: 'Animation',
+          });
+        animationFolder.addBinding(animationClipObject, 'clip', {
+            options: animationOptions,
+        });
+
+        // Add loop option
+        animationFolder.addBinding(animationLoop, 'loop');
+
+        // Add button Play
+        const btnPlayPause = animationFolder.addButton({
+            title: 'Play | Pause',
+          });
+
+        // Add button Restart
+        const btnRestart = animationFolder.addButton({
+            title: 'Restart',
+          });
+
+        // Add button Stop
+        const btnStop = animationFolder.addButton({
+            title: 'Stop',
+          });
+ 
+ 
+        // Event Handler for Morph Pane
+        animationFolder.on( 'change', function( ev ) {  
+            if( ev.target.label === "clip" && ev.value !== "none" ){
+                // Play a specific animation
+                let clip = THREE.AnimationClip.findByName( animations, ev.value );
+                if( action )
+                    action.stop();
+                action = mixer.clipAction( clip );
+                action.clampWhenFinished = true // pause in the last keyframe
+                action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )               
+            }
+            if( ev.target.label === "clip" && ev.value === "none" ){
+                action.stop();
+                action = null;
+            }
+            if( ev.target.label === "loop" && action ){
+                action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
+            }
+        });
+
+        // On PlayPaused clicked
+        btnPlayPause.on( "click", () => {
+            if ( action ){
+                if( action.isRunning() !== true ) {
+                    action.paused = false;
+                    action.play();
+                }
+                else
+                    action.paused = true;
+            } 
+        });
+
+        // On Restart clicked
+        btnRestart.on( "click", () => {
+            if ( action )
+                action.reset();
+        });
+
+        // On Stop clicked
+        btnStop.on( "click", () => {
+            if ( action )
+                action.stop();
+        });
+
+    }
+
 }
 
 // Sockets ***************************************************
