@@ -285,10 +285,12 @@ function createGUI( model, animations) {
                     // Emit change of the object
                     socket.emit( 'onObjectMorphChange', ev.value );
                 } else {
+                    // Sliders changed
+                    model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+   
                     if( ev.last !== true ){
-                        // Sliders changed
-                        model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
-                        // Emit Morph Target Slider Info
+                        console.log("AQUI2")
+                         // Emit Morph Target Slider Info
                         socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
                         console.log( ev.value )
                     }
@@ -429,7 +431,6 @@ socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
 // Behavior when receives object morph changes
 socket.on( 'onObjectMorphChange', function( value ) {
     morphFolder.children[0].controller.value.rawValue = value;
-    //currentObjectSelection.morphObject = value;
 });
 
 // Behavior when a user connects
@@ -449,8 +450,10 @@ socket.on( 'userConnected', function( msg ) {
 
 // Behavior when a user disconnects
 socket.on( 'userDisconnected', function( msg ) {
+    
     console.log( msg + " has disconnected " );
     let tempCameraHelper = scene.getObjectByName( msg );
+
     if( tempCameraHelper !== null ){
         let tempCamera = tempCameraHelper.camera;
         scene.remove( tempCameraHelper );
@@ -464,12 +467,10 @@ socket.on( 'userDisconnected', function( msg ) {
 });
 
 socket.on( 'updateCamera', function( msg ){
+
     let tempCameraHelper = scene.getObjectByName( msg.userName );
-   // console.log(tempCameraHelper);
     tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
-    //tempCameraHelper.position.set(msg.x, msg.y, msg.z);
     tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
-    // tempCameraHelper.rotation.set(msg.lx, msg.ly, msg.lz);
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
 });   
