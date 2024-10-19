@@ -29,7 +29,7 @@ const controls = new OrbitControls( camera, renderer.domElement );
 var morphFolder, animationFolder, sliderMorphs=[];
 
 // Create an AnimationMixer and a clock for animation purposes
-var mixer, clock;
+var mixer, clock, action;
 
 // Create a UI Pane
 const pane = new Pane({
@@ -214,10 +214,7 @@ function createGUI( model, animations) {
     let animationLoop = {
         loop: false,
       };
-    // Action
-    let action;
     
-
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
             if ( object.isMesh && object.geometry.morphAttributes ) {
@@ -339,8 +336,11 @@ function createGUI( model, animations) {
  
         // Event Handler for Morph Pane
         animationFolder.on( 'change', function( ev ) {  
+
             if( ev.target.label === "clip" && ev.value !== "none" ){
-                // Play a specific animation
+                // Emit change of the clip
+                socket.emit( 'onClipChange', ev.value );                        
+                // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
                 if( action )
                     action.stop();
@@ -348,18 +348,30 @@ function createGUI( model, animations) {
                 action.clampWhenFinished = true // pause in the last keyframe
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )               
             }
+
             if( ev.target.label === "clip" && ev.value === "none" ){
+                // Emit change of the clip
+                socket.emit( 'onClipChange', ev.value ); 
                 action.stop();
                 action = null;
             }
+
             if( ev.target.label === "loop" && action ){
+                socket.emit( 'onLoopChange', ev.value ); 
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
             }
+
+            if( ev.target.label === "loop" && action == null ){
+                socket.emit( 'onLoopChange', ev.value ); 
+            }  
         });
 
         // On PlayPaused clicked
         btnPlayPause.on( "click", () => {
+
             if ( action ){
+                // Emit play
+                socket.emit( 'play' );
                 if( action.isRunning() !== true ) {
                     action.paused = false;
                     action.play();
@@ -371,14 +383,20 @@ function createGUI( model, animations) {
 
         // On Restart clicked
         btnRestart.on( "click", () => {
-            if ( action )
+            if ( action ){
+                // Emit restart
+                socket.emit( 'restart' );
                 action.reset();
+            }
         });
 
         // On Stop clicked
         btnStop.on( "click", () => {
-            if ( action )
+            if ( action ){
+                // Emit play
+                socket.emit( 'stop' );
                 action.stop();
+            }
         });
 
     }
@@ -410,7 +428,6 @@ socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
 
 // Behavior when receives object morph changes
 socket.on( 'onObjectMorphChange', function( value ) {
-    console.log(value);
     morphFolder.children[0].controller.value.rawValue = value;
     //currentObjectSelection.morphObject = value;
 });
@@ -456,6 +473,40 @@ socket.on( 'updateCamera', function( msg ){
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
 });   
+
+// On clip change
+socket.on( 'onClipChange', function( clip ){
+    animationFolder.children[0].controller.value.rawValue = clip;
+}); 
+
+// On loop change
+socket.on( 'onLoopChange', function( value ){
+    animationFolder.children[1].controller.value.rawValue = value;
+}); 
+
+// Play animation
+socket.on( 'play', function(){
+    if ( action ){
+        if( action.isRunning() !== true ) {
+            action.paused = false;
+            action.play();
+        }
+        else
+            action.paused = true;
+    }
+}); 
+
+// Restart animation
+socket.on( 'restart', function(){
+    if ( action )
+        action.reset();
+}); 
+
+// Stop animation
+socket.on( 'stop', function(){
+    if ( action )
+        action.stop();
+}); 
 
 // Emit Creating Camera
 socket.emit( 'createCamera', userName );
