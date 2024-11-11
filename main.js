@@ -5,12 +5,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {Pane} from 'tweakpane';
 
-
 var userName = prompt( "Please enter your name" );
 
 // Create a socket
 var socket = io( "http://localhost:3000" , {
-    reconnectionDelayMax: 10000 ,
+    reconnectionDelayMax: 10000,
     auth: {
         token: "123"
     },
