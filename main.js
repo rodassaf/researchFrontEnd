@@ -77,6 +77,7 @@ function init() {
             gltf.asset; // Object
             
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
+            noXRCameraUpdate();
             createGUI( gltf.scene, gltf.animations );
         },
         // called while loading is progressing
@@ -97,12 +98,13 @@ function init() {
 
     // Trigger event when a XR session is started
     renderer.xr.addEventListener( 'sessionstart', function( event ) {
+        controls.removeEventListener( 'change', noXRCameraUpdate )
         controls.dispose();
     }); 
 }
 
 
-function fitCameraToObject(camera, object, offset, controls) {
+function fitCameraToObject( camera, object, offset, controls ) {
     // Compute the bounding box of the object
     const boundingBox = new THREE.Box3().setFromObject(object);
     
@@ -164,9 +166,9 @@ function animate() {
 }
 
 function render() {
-    
     let dt = clock.getDelta();
-    if ( mixer ) mixer.update( dt );
+    if ( mixer ) 
+        mixer.update( dt );
     controls.update();
     renderer.render( scene, camera );
 }
@@ -288,7 +290,6 @@ function createGUI( model, animations) {
                     model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
    
                     if( ev.last !== true ){
-                        console.log("AQUI2")
                          // Emit Morph Target Slider Info
                         socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
                         console.log( ev.value )
@@ -369,7 +370,6 @@ function createGUI( model, animations) {
 
         // On PlayPaused clicked
         btnPlayPause.on( "click", () => {
-
             if ( action ){
                 // Emit play
                 socket.emit( 'play' );
@@ -415,6 +415,7 @@ socket.on( 'createCamera', function( msg ) {
     let cameraHelper = new THREE.CameraHelper( userCamera );
     cameraHelper.name = msg;
     scene.add( cameraHelper );
+    noXRCameraUpdate();
 });
 
 // Behavior when receives morph target new values
@@ -466,7 +467,6 @@ socket.on( 'userDisconnected', function( msg ) {
 });
 
 socket.on( 'updateCamera', function( msg ){
-
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
     tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
