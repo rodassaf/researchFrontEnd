@@ -6,5 +6,7 @@ body {
 .tp-dfwv { /* This is the default class for the pane */
     position: absolute;
     top: 1% !important;  
-    left: 1%;  
+    left: 1%;
+    pointer-events: auto;
+    z-index: 1000;
 }

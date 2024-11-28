@@ -3,7 +3,11 @@ import * as THREE from 'three';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import {Pane} from 'tweakpane';
+import { Pane } from 'tweakpane';
+
+import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js';
+import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
 var userName = prompt( "Please enter your name" );
 
@@ -23,6 +27,22 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
+
+// Mesh to hold the UI from a dom element and Group to hold Interactable objects
+var uiMesh, interactiveGroup;
+
+// Controllers
+var geometry, controller1, controller2;
+
+// Camera Initial Position
+var initCameraX, initCameraY, initCameraZ;
+
+// Create a parent object for the camera: VRCamera Helper
+const cameraRig = new THREE.Group();
+scene.add( cameraRig );
+
+// Add the camera to the parent object
+cameraRig.add( camera );
 
 // UI variables
 var morphFolder, animationFolder, sliderMorphs=[];
@@ -77,6 +97,10 @@ function init() {
             gltf.asset; // Object
             
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
+            // Save Inital Camera Position to be used later in the VR Initial position Camera
+            initCameraX = camera.position.x;
+            initCameraY = camera.position.y;
+            initCameraZ = camera.position.z;
             noXRCameraUpdate();
             createGUI( gltf.scene, gltf.animations );
         },
@@ -98,43 +122,85 @@ function init() {
 
     // Trigger event when a XR session is started
     renderer.xr.addEventListener( 'sessionstart', function( event ) {
+        // Remove keyboard controls
         controls.removeEventListener( 'change', noXRCameraUpdate )
         controls.dispose();
+
+        // Adjust camera position
+        cameraRig.position.set( initCameraX, initCameraY, initCameraZ );
+
+        // Create controllers
+        geometry = new THREE.BufferGeometry();
+        geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
+
+        controller1 = renderer.xr.getController( 0 );
+        controller1.add( new THREE.Line( geometry ) );
+        scene.add( controller1 );
+
+        controller2 = renderer.xr.getController( 1 );
+        controller2.add( new THREE.Line( geometry ) );
+        scene.add( controller2 );
+
+        const controllerModelFactory = new XRControllerModelFactory();
+
+        const controllerGrip1 = renderer.xr.getControllerGrip( 0 );
+        controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) );
+        scene.add( controllerGrip1 );
+
+        const controllerGrip2 = renderer.xr.getControllerGrip( 1 );
+        controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) );
+        scene.add( controllerGrip2 );
+
+        // Set new interactive group
+        interactiveGroup = new InteractiveGroup();
+        interactiveGroup.listenToPointerEvents( renderer, camera );
+        interactiveGroup.listenToXRControllerEvents( controller1 );
+        interactiveGroup.listenToXRControllerEvents( controller2 );
+        scene.add( interactiveGroup );
+
+        // Create the UI in the 3D space
+        uiMesh = new HTMLMesh( pane.element );
+		uiMesh.position.x = - 3.75;
+        uiMesh.position.y = 1.5;
+        uiMesh.position.z = - 0.5;
+        uiMesh.rotation.y = Math.PI / 4;
+        uiMesh.scale.setScalar( 8 );
+        interactiveGroup.add( uiMesh );
     }); 
 }
 
 
 function fitCameraToObject( camera, object, offset, controls ) {
     // Compute the bounding box of the object
-    const boundingBox = new THREE.Box3().setFromObject(object);
+    const boundingBox = new THREE.Box3().setFromObject( object );
     
     // Get the size and center of the bounding box
-    const size = boundingBox.getSize(new THREE.Vector3());
-    const center = boundingBox.getCenter(new THREE.Vector3());
+    const size = boundingBox.getSize( new THREE.Vector3() );
+    const center = boundingBox.getCenter( new THREE.Vector3() );
 
     // Get the max size to fit the object
-    const maxDim = Math.max(size.x, size.y, size.z);
+    const maxDim = Math.max( size.x, size.y, size.z );
 
     // Compute the distance the camera should be from the object
-    const fov = camera.fov * (Math.PI / 180); // Convert FOV from degrees to radians
-    let cameraDistance = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+    const fov = camera.fov * ( Math.PI / 180 ); // Convert FOV from degrees to radians
+    let cameraDistance = Math.abs( maxDim / 2 / Math.tan( fov / 2 ) );
 
     // Apply offset factor to make the object fit nicely
     cameraDistance *= offset;
 
     // Set the camera position directly in front of the object
     // Assuming 'front' means along the z-axis
-    const frontDirection = new THREE.Vector3(0, 0, 1); // Camera positioned along positive Z axis
-    const cameraPosition = center.clone().add(frontDirection.multiplyScalar(cameraDistance));
+    const frontDirection = new THREE.Vector3( 0, 0, 1 ); // Camera positioned along positive Z axis
+    const cameraPosition = center.clone().add( frontDirection.multiplyScalar( cameraDistance ) );
     
-    camera.position.copy(cameraPosition);
+    camera.position.copy( cameraPosition );
 
     // Make the camera look at the center of the object
-    camera.lookAt(center);
+    camera.lookAt( center );
 
     // Optionally, update controls to target the center of the object
-    if (controls) {
-        controls.target.copy(center);
+    if ( controls ) {
+        controls.target.copy( center );
         controls.update();
     }
 
@@ -144,7 +210,7 @@ function fitCameraToObject( camera, object, offset, controls ) {
 
 // Function to find a blade by label
 function findBladeByLabel(pane, label) {
-    return pane.children.find((child) => child.controller.value.value_ === label);
+    return pane.children.find(( child ) => child.controller.value.value_ === label);
 }
 
 function noXRCameraUpdate () {
