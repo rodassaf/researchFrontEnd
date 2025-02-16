@@ -127,7 +127,7 @@ function init() {
         controls.dispose();
 
         // Adjust camera position
-        cameraRig.position.set( initCameraX, initCameraY, initCameraZ );
+        //cameraRig.position.set( initCameraX, initCameraY, initCameraZ );
 
         // Create controllers
         geometry = new THREE.BufferGeometry();
@@ -242,6 +242,40 @@ function render() {
 // Initializate Scene
 init();
 animate();
+
+// Emit Create Camera
+socket.emit( 'createCamera', userName );
+
+// Check existing users and add their cameras - only happens one time
+socket.once( 'checkWhosOnline', function( msg ){
+    // Add current user to the pane
+    userFolder.addBlade({
+    view: 'text',
+    label: 'user (me)',
+    parse: ( v ) => String( v ),
+    value: userName,
+    });
+
+    // If there are more users online
+    if( msg.length > 0 ){
+        for( let k=0; k<msg.length; k++ ){
+            let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+            let cameraHelper = new THREE.CameraHelper( userCamera );
+            cameraHelper.name = msg[ k ];
+            scene.add( userCamera );
+            scene.add( cameraHelper );
+            
+            // Add online users connected to the pane
+            userFolder.addBlade({
+                view: 'text',
+                label: 'user',
+                parse: ( v ) => String( v ),
+                value: msg[ k ],
+              });
+        }
+        console.log('Added '+msg.length+' Cameras')
+    }
+});
 
 // Windows Behaviour *****************************************
 
@@ -481,6 +515,54 @@ socket.on( 'createCamera', function( msg ) {
     let cameraHelper = new THREE.CameraHelper( userCamera );
     cameraHelper.name = msg;
     scene.add( cameraHelper );
+
+    // Load an avatar
+    loader.load(
+        // resource URL
+        'glb/avatarVr.glb',
+        // called when the resource is loaded
+        function ( gltf ) {
+            
+            let model = gltf.scene;
+
+            // Define a new material
+            let newMaterial = new THREE.MeshStandardMaterial({
+                color: 0x808080, // Blue color
+                metalness: 0.5,
+                roughness: 0.5
+            });
+
+            // Apply material to all meshes
+            model.traverse(( child ) => {
+                if ( child.isMesh ) {
+                    child.material = newMaterial;
+                }
+            });
+            // Adjust position and scale down
+            model.scale.set( 0.1, 0.1, 0.1 );
+            model.position.y = -0.3;
+
+            const head = model.getObjectByName('head');
+            if ( head ) {
+                head.rotation.z = - Math.PI / 2; // Rotate 45 degrees on the Y-axis
+            } else {
+                console.warn( "Head object not found in the GLB file." );
+            }
+            // Add to scene
+            scene.add( model );
+            // Make it child of camera
+            userCamera.add( model );
+        },
+        // called while loading is progressing
+        function ( xhr ) {
+            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+        },
+        // called when loading has errors
+        function ( error ) {
+            console.log( 'An error happened loading the avatar' );
+        }
+    );
+
     noXRCameraUpdate();
 });
 
@@ -572,38 +654,4 @@ socket.on( 'restart', function(){
 socket.on( 'stop', function(){
     if ( action )
         action.stop();
-}); 
-
-// Emit Creating Camera
-socket.emit( 'createCamera', userName );
-
-// Check existing users and add their cameras - only happens one time
-socket.once( 'checkWhosOnline', function( msg ){
-    // Add current user to the pane
-    userFolder.addBlade({
-    view: 'text',
-    label: 'user (me)',
-    parse: ( v ) => String( v ),
-    value: userName,
-    });
-
-    // If there are more users online
-    if( msg.length > 0 ){
-        for( let k=0; k<msg.length; k++ ){
-            let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-            let cameraHelper = new THREE.CameraHelper( userCamera );
-            cameraHelper.name = msg[ k ];
-            scene.add( userCamera );
-            scene.add( cameraHelper );
-            
-            // Add online users connected to the pane
-            userFolder.addBlade({
-                view: 'text',
-                label: 'user',
-                parse: ( v ) => String( v ),
-                value: msg[ k ],
-              });
-        }
-        console.log('Added '+msg.length+' Cameras')
-    }
 });
