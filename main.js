@@ -170,6 +170,56 @@ function init() {
 }
 
 
+function loadAvatar( gltfString, userCamera ) {
+    // Load an avatar
+    loader.load(
+        // resource URL
+        gltfString, 
+        // called when the resource is loaded
+        function ( gltf ) {
+            
+            let model = gltf.scene;
+
+            // Define a new material
+            let newMaterial = new THREE.MeshStandardMaterial({
+                color: 0x808080, // Blue color
+                metalness: 0.5,
+                roughness: 0.5
+            });
+
+            // Apply material to all meshes
+            model.traverse(( child ) => {
+                if ( child.isMesh ) {
+                    child.material = newMaterial;
+                }
+            });
+            // Adjust position and scale down
+            model.scale.set( 0.1, 0.1, 0.1 );
+            model.position.y = -0.3;
+
+            const head = model.getObjectByName('head');
+            if ( head ) {
+                head.rotation.z = - Math.PI / 2; // Rotate 45 degrees on the Y-axis
+            } else {
+                console.warn( "Head object not found in the GLB file." );
+            }
+            // Add to scene
+            scene.add( model );
+            // Make it child of camera
+            userCamera.add( model );
+        },
+        // called while loading is progressing
+        function ( xhr ) {
+            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+        },
+        // called when loading has errors
+        function ( error ) {
+            console.log( 'An error happened loading the avatar' );
+        }
+    );
+}
+
+
 function fitCameraToObject( camera, object, offset, controls ) {
     // Compute the bounding box of the object
     const boundingBox = new THREE.Box3().setFromObject( object );
@@ -264,6 +314,8 @@ socket.once( 'checkWhosOnline', function( msg ){
             cameraHelper.name = msg[ k ];
             scene.add( userCamera );
             scene.add( cameraHelper );
+            // Load an avatar
+            loadAvatar( 'glb/avatarVr.glb', userCamera );
             
             // Add online users connected to the pane
             userFolder.addBlade({
@@ -517,52 +569,7 @@ socket.on( 'createCamera', function( msg ) {
     scene.add( cameraHelper );
 
     // Load an avatar
-    loader.load(
-        // resource URL
-        'glb/avatarVr.glb',
-        // called when the resource is loaded
-        function ( gltf ) {
-            
-            let model = gltf.scene;
-
-            // Define a new material
-            let newMaterial = new THREE.MeshStandardMaterial({
-                color: 0x808080, // Blue color
-                metalness: 0.5,
-                roughness: 0.5
-            });
-
-            // Apply material to all meshes
-            model.traverse(( child ) => {
-                if ( child.isMesh ) {
-                    child.material = newMaterial;
-                }
-            });
-            // Adjust position and scale down
-            model.scale.set( 0.1, 0.1, 0.1 );
-            model.position.y = -0.3;
-
-            const head = model.getObjectByName('head');
-            if ( head ) {
-                head.rotation.z = - Math.PI / 2; // Rotate 45 degrees on the Y-axis
-            } else {
-                console.warn( "Head object not found in the GLB file." );
-            }
-            // Add to scene
-            scene.add( model );
-            // Make it child of camera
-            userCamera.add( model );
-        },
-        // called while loading is progressing
-        function ( xhr ) {
-            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-        },
-        // called when loading has errors
-        function ( error ) {
-            console.log( 'An error happened loading the avatar' );
-        }
-    );
-
+    loadAvatar( 'glb/avatarVr.glb', userCamera );
     noXRCameraUpdate();
 });
 
