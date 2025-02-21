@@ -97,9 +97,10 @@ body {
     margin-top: -3px;
     border-radius: 5px;
     background-color: #656565;
-    width: fit-content;
+    width: 40px;
     padding: 3px 3px 3px 3px;
     font-size: small;
+    text-align: center;
 }
 
 .sliderConnected {
