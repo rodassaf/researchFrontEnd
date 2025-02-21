@@ -31,6 +31,9 @@ const controls = new OrbitControls( camera, renderer.domElement );
 // Mesh to hold the UI from a dom element and Group to hold Interactable objects
 var uiMesh, interactiveGroup;
 
+// Slider of Timeline
+var slider;
+
 // Controllers
 var geometry, controller1, controller2;
 
@@ -140,6 +143,15 @@ function init() {
         controller2 = renderer.xr.getController( 1 );
         controller2.add( new THREE.Line( geometry ) );
         scene.add( controller2 );
+
+        // Controller Events
+        controller1.addEventListener('selectstart', () => {
+            console.log('Select pressed');
+        });
+
+        controller1.addEventListener('squeezestart', () => {
+            console.log('Squeeze pressed');
+        });
 
         const controllerModelFactory = new XRControllerModelFactory();
 
@@ -329,7 +341,7 @@ socket.once( 'checkWhosOnline', function( msg ){
     }
 });
 
-// Windows Behaviour *****************************************
+// Windows Behaviour & Events *****************************************
 
 window.addEventListener( 'resize', onWindowResize );
 
@@ -339,8 +351,64 @@ function onWindowResize() {
     renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
+// Update frame number
+slider = document.getElementById( "myTimeline" );
+slider.addEventListener( "input", updateFrameNumber );
 
-// GUI *******************************************************
+function updateFrameNumber() {
+    let frameNumber = document.getElementById( "frameNumber" )
+    let value = slider.value;
+    frameNumber.textContent = value.toString().padStart(4, '0');;
+}
+
+
+
+// Text on Slider!!!!!
+
+/* const slider = document.getElementById("myRange2");
+const sliderValue = document.getElementById("slider-value");
+
+function updateSliderValue() {
+    const sliderRect = slider.getBoundingClientRect();
+    const min = slider.min;
+    const max = slider.max;
+    const value = slider.value;
+
+    // Calculate percentage of the thumb position
+    const percent = (value - min) / (max - min);
+    const offset = (percent+0.04) * (sliderRect.width - 15); // Adjust for thumb width
+
+    // Move the text dynamically
+    sliderValue.style.left = `${offset}px`;
+    //sliderValue.textContent = value;
+}
+
+// Update on input
+slider.addEventListener("input", updateSliderValue);
+
+// Initialize position
+updateSliderValue(); */
+
+
+
+// Timeline GUI *******************************************************
+
+document.getElementById("playPause").onclick = playPause;
+
+function playPause() {
+    if ( action ){
+        // Emit play
+        socket.emit( 'play' );
+        if( action.isRunning() !== true ) {
+            action.paused = false;
+            action.play();
+        }
+        else
+            action.paused = true;
+    } 
+}
+
+// GUI ***************************************************************
 
 function createGUI( model, animations) {
     // Objects with morphs
@@ -555,6 +623,7 @@ function createGUI( model, animations) {
     }
 
 }
+
 
 // Sockets ***************************************************
 
