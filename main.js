@@ -27,6 +27,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
+const frameRate = 30;
 
 // Mesh to hold the UI from a dom element and Group to hold Interactable objects
 var uiMesh, interactiveGroup;
@@ -36,9 +37,6 @@ var slider;
 
 // Controllers
 var geometry, controller1, controller2;
-
-// Camera Initial Position
-var initCameraX, initCameraY, initCameraZ;
 
 // Create a parent object for the camera: VRCamera Helper
 const cameraRig = new THREE.Group();
@@ -51,7 +49,7 @@ cameraRig.add( camera );
 var morphFolder, animationFolder, sliderMorphs=[];
 
 // Create an AnimationMixer and a clock for animation purposes
-var mixer, clock, action;
+var mixer, clock, action, currentClip;
 
 // Create a UI Pane
 const pane = new Pane({
@@ -100,10 +98,6 @@ function init() {
             gltf.asset; // Object
             
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
-            // Save Inital Camera Position to be used later in the VR Initial position Camera
-            initCameraX = camera.position.x;
-            initCameraY = camera.position.y;
-            initCameraZ = camera.position.z;
             noXRCameraUpdate();
             createGUI( gltf.scene, gltf.animations );
         },
@@ -128,9 +122,6 @@ function init() {
         // Remove keyboard controls
         controls.removeEventListener( 'change', noXRCameraUpdate )
         controls.dispose();
-
-        // Adjust camera position
-        //cameraRig.position.set( initCameraX, initCameraY, initCameraZ );
 
         // Create controllers
         geometry = new THREE.BufferGeometry();
@@ -295,8 +286,16 @@ function animate() {
 
 function render() {
     let dt = clock.getDelta();
-    if ( mixer ) 
+    if ( mixer ) {
         mixer.update( dt );
+        // Sync slider with animation
+        if ( action ) {
+            let progress = ( action.time / currentClip.duration ) * 100;
+            slider.value = progress; // Update slider to match animation
+            updateFrameNumber();
+        }
+    }
+
     controls.update();
     renderer.render( scene, camera );
 }
@@ -351,17 +350,27 @@ function onWindowResize() {
     renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
-// Update frame number
+// Get Slider
 slider = document.getElementById( "myTimeline" );
-slider.addEventListener( "input", updateFrameNumber );
+
+// Grabbing Timeline
+slider.addEventListener( "input", ( event ) => {
+    if ( action ) {
+        if( action.isRunning() !== true ) 
+            action.play();
+        action.paused = true;
+        let sliderValue = event.target.value / 100; // Normalize value
+        action.time = sliderValue * currentClip.duration;
+        mixer.update(0); // Apply the new time
+        updateFrameNumber();
+    }
+});
 
 function updateFrameNumber() {
     let frameNumber = document.getElementById( "frameNumber" )
     let value = slider.value;
     frameNumber.textContent = value.toString().padStart(4, '0');;
 }
-
-
 
 // Text on Slider!!!!!
 
@@ -393,7 +402,9 @@ updateSliderValue(); */
 
 // Timeline GUI *******************************************************
 
-document.getElementById("playPause").onclick = playPause;
+document.getElementById( "playPause" ).onclick = playPause;
+document.getElementById( "restart" ).onclick = restart;
+document.getElementById( "stop" ).onclick = stop;
 
 function playPause() {
     if ( action ){
@@ -406,6 +417,22 @@ function playPause() {
         else
             action.paused = true;
     } 
+}
+
+function restart() {
+    if ( action ){
+        // Emit restart
+        socket.emit( 'restart' );
+        action.reset();
+    }
+}
+
+function stop() {
+    if ( action ){
+        // Emit play
+        socket.emit( 'stop' );
+        action.stop();
+    }
 }
 
 // GUI ***************************************************************
@@ -526,35 +553,24 @@ function createGUI( model, animations) {
 
         // Feed the binded object for options
         for( let i = 0; i < animations.length; i++ ){
-            animationOptions[animations[i].name] = animations[i].name;
+            animationOptions[ animations[ i ].name ] = animations[ i ].name;
         }
 
         // Create UI Pane
         animationFolder = pane.addFolder({
             title: 'Animation',
           });
-        animationFolder.addBinding(animationClipObject, 'clip', {
+        animationFolder.addBinding( animationClipObject, 'clip', {
             options: animationOptions,
         });
 
         // Add loop option
-        animationFolder.addBinding(animationLoop, 'loop');
+        animationFolder.addBinding( animationLoop, 'loop');
 
-        // Add button Play
-        const btnPlayPause = animationFolder.addButton({
+        // Add button 
+        /* const btnPlayPause = animationFolder.addButton({
             title: 'Play | Pause',
-          });
-
-        // Add button Restart
-        const btnRestart = animationFolder.addButton({
-            title: 'Restart',
-          });
-
-        // Add button Stop
-        const btnStop = animationFolder.addButton({
-            title: 'Stop',
-          });
- 
+          }); */
  
         // Event Handler for Morph Pane
         animationFolder.on( 'change', function( ev ) {  
@@ -564,11 +580,18 @@ function createGUI( model, animations) {
                 socket.emit( 'onClipChange', ev.value );                        
                 // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
+                // Save as a global variable
+                currentClip = THREE.AnimationClip.findByName( animations, ev.value );
+
                 if( action )
                     action.stop();
                 action = mixer.clipAction( clip );
                 action.clampWhenFinished = true // pause in the last keyframe
-                action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )               
+                action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
+                // Prepare the Timeline
+                slider.max = Math.round( clip.duration * frameRate );
+                slider.value = 1;
+                updateFrameNumber();
             }
 
             if( ev.target.label === "clip" && ev.value === "none" ){
@@ -576,6 +599,7 @@ function createGUI( model, animations) {
                 socket.emit( 'onClipChange', ev.value ); 
                 action.stop();
                 action = null;
+                currentClip = null;
             }
 
             if( ev.target.label === "loop" && action ){
@@ -587,43 +611,8 @@ function createGUI( model, animations) {
                 socket.emit( 'onLoopChange', ev.value ); 
             }  
         });
-
-        // On PlayPaused clicked
-        btnPlayPause.on( "click", () => {
-            if ( action ){
-                // Emit play
-                socket.emit( 'play' );
-                if( action.isRunning() !== true ) {
-                    action.paused = false;
-                    action.play();
-                }
-                else
-                    action.paused = true;
-            } 
-        });
-
-        // On Restart clicked
-        btnRestart.on( "click", () => {
-            if ( action ){
-                // Emit restart
-                socket.emit( 'restart' );
-                action.reset();
-            }
-        });
-
-        // On Stop clicked
-        btnStop.on( "click", () => {
-            if ( action ){
-                // Emit play
-                socket.emit( 'stop' );
-                action.stop();
-            }
-        });
-
     }
-
 }
-
 
 // Sockets ***************************************************
 
