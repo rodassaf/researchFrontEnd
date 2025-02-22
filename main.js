@@ -363,6 +363,8 @@ slider.addEventListener( "input", ( event ) => {
         action.time = sliderValue * currentClip.duration;
         mixer.update(0); // Apply the new time
         updateFrameNumber();
+        // Emit value
+        socket.emit( 'grabbing', action.time );
     }
 });
 
@@ -711,12 +713,24 @@ socket.on( 'play', function(){
 
 // Restart animation
 socket.on( 'restart', function(){
-    if ( action )
+    if( action )
         action.reset();
 }); 
 
 // Stop animation
 socket.on( 'stop', function(){
-    if ( action )
+    if( action )
         action.stop();
+});
+
+// Grabbing timeline
+socket.on( 'grabbing', function( value ){
+    if( action ) {
+        if( action.isRunning() !== true ) 
+            action.play();
+        action.paused = true;
+        action.time = value;
+        mixer.update(0); // Apply the new time
+        updateFrameNumber();
+    }
 });
