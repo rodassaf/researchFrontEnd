@@ -54,7 +54,7 @@ scene.add( cameraRig );
 cameraRig.add( camera );
 
 // UI variables
-var morphFolder, animationFolder, sliderMorphs=[];
+var morphFolder, animationFolder, xrFolder, sliderMorphs=[];
 
 // Create an AnimationMixer and a clock for animation purposes
 var mixer, clock, action, currentClip;
@@ -121,6 +121,7 @@ function init() {
 
     document.body.appendChild( renderer.domElement );
     document.body.appendChild( VRButton.createButton( renderer ) );
+    document.getElementById( "VRButton" ).style = "hidden";
   
     // Trigger event when a not XR camera is being manipulated
     controls.addEventListener( 'change', noXRCameraUpdate );
@@ -372,7 +373,8 @@ slider.addEventListener( "input", ( event ) => {
         mixer.update(0); // Apply the new time
         updateFrameNumber();
         // Emit value
-        socket.emit( 'grabbing', action.time );
+        if( flags.isAnimationSync == true )
+            socket.emit( 'grabbing', action.time );
     }
 });
 
@@ -419,7 +421,8 @@ document.getElementById( "stop" ).onclick = stop;
 function playPause() {
     if ( action ){
         // Emit play
-        socket.emit( 'play' );
+        if( flags.isAnimationSync == true )
+            socket.emit( 'play' );
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
@@ -432,15 +435,17 @@ function playPause() {
 function restart() {
     if ( action ){
         // Emit restart
-        socket.emit( 'restart' );
+        if( flags.isAnimationSync == true )
+            socket.emit( 'restart' );
         action.reset();
     }
 }
 
 function stop() {
     if ( action ){
-        // Emit play
-        socket.emit( 'stop' );
+        // Emit stop
+        if( flags.isAnimationSync == true )
+            socket.emit( 'stop' );
         action.stop();
     }
 }
@@ -508,7 +513,7 @@ function createGUI( model, animations) {
         morphFolder.addBinding( flags, 'isMorphSync',  { label: 'sync', });
 
         // Event Handler for Morph Pane
-        morphFolder.on( 'change', function( ev ) {            
+        morphFolder.on( 'change', function( ev ) {          
                 if( isNaN( ev.value ) === true ){
                     // Object List changed
                     currentObjectSelection.morphObject = ev.value;
@@ -521,7 +526,8 @@ function createGUI( model, animations) {
                         // Add sync option
                         morphFolder.addBinding( flags, 'isMorphSync', { label: 'sync', });
                         // Emit change of the object to none
-                        socket.emit( 'onObjectMorphChange', ev.value );
+                        if( flags.isMorphSync == true )
+                            socket.emit( 'onObjectMorphChange', ev.value );
                         return;
                     }
                     // Clear NameTargets
@@ -550,15 +556,30 @@ function createGUI( model, animations) {
                     morphFolder.addBinding( flags, 'isMorphSync', { label: 'sync', });
 
                     // Emit change of the object
-                    socket.emit( 'onObjectMorphChange', ev.value );
+                    if( flags.isMorphSync == true )
+                        socket.emit( 'onObjectMorphChange', ev.value );
                 } else {
+
+                    if( ev.target.label === "sync" && ev.value == true ){
+                        for( let i = morphFolder.children.length-1; i > 0; i-- ) {
+                            morphFolder.children[ i ].dispose();
+                        }
+                        // Add sync option
+                        morphFolder.addBinding( flags, 'isMorphSync', { label: 'sync', });
+                        // Emit change of the object to none
+                        if( flags.isMorphSync == true )
+                            socket.emit( 'onObjectMorphChange', ev.value );
+                        return;
+                    }
+
                     // Sliders changed
-                    model.getObjectByName(  currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+                    model.getObjectByName( currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
    
                     if( ev.last !== true ){
                          // Emit Morph Target Slider Info
-                        socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value  );
-                        console.log( ev.value )
+                        if( flags.isMorphSync == true )
+                            socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value );
+
                     }
                 }
           });
@@ -599,7 +620,8 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value !== "none" ){
                 // Emit change of the clip
-                socket.emit( 'onClipChange', ev.value );                        
+                if( flags.isAnimationSync == true )
+                    socket.emit( 'onClipChange', ev.value );                        
                 // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
                 // Save as a global variable
@@ -618,23 +640,28 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value === "none" ){
                 // Emit change of the clip
-                socket.emit( 'onClipChange', ev.value ); 
-                action.stop();
+                if( flags.isAnimationSync == true )
+                    socket.emit( 'onClipChange', ev.value ); 
+                if ( action )
+                    action.stop();
                 action = null;
                 currentClip = null;
             }
 
             if( ev.target.label === "loop" && action ){
-                socket.emit( 'onLoopChange', ev.value ); 
+                if( flags.isAnimationSync == true )
+                    socket.emit( 'onLoopChange', ev.value ); 
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
             }
 
             if( ev.target.label === "loop" && action == null ){
-                socket.emit( 'onLoopChange', ev.value ); 
+                if( flags.isAnimationSync == true )
+                    socket.emit( 'onLoopChange', ev.value ); 
             }
 
             if( ev.target.label === "sync" && ev.value == true){
-                socket.emit( 'onClipChange', "none" ); 
+                if( flags.isAnimationSync == true )
+                    socket.emit( 'onClipChange', "none" ); 
                 if ( action ) {
                     action.reset();
                     action.stop();
@@ -645,6 +672,19 @@ function createGUI( model, animations) {
 
         });
     }
+
+    // Create VR Folder
+    xrFolder = pane.addFolder({
+        title: 'VR Setup',
+    });
+
+    const VRButton = xrFolder.addButton({
+        title: document.getElementById( "VRButton" ).textContent
+      });
+    
+    VRButton.on('click', () => {
+        document.getElementById( "VRButton" ).click();
+    });
 }
 
 // Sockets ***************************************************
@@ -666,18 +706,15 @@ socket.on( 'createCamera', function( msg ) {
 
 // Behavior when receives morph target new values
 socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
-    if( flags.isMorphSync == true ){
-        let key = Object.keys( sliderMorphs[ morphTarget ] )
-        if( sliderMorphs[ morphTarget ][ key ] !== value ){
-            sliderMorphs[ morphTarget ][ key ] = value;
-            pane.refresh();
-        }
+    let key = Object.keys( sliderMorphs[ morphTarget ] )
+    if( sliderMorphs[ morphTarget ][ key ] !== value ){
+        sliderMorphs[ morphTarget ][ key ] = value;
+        pane.refresh();
     }
 });
 
 // Behavior when receives object morph changes
 socket.on( 'onObjectMorphChange', function( value ) {
-    if( flags.isMorphSync == true )
         morphFolder.children[0].controller.value.rawValue = value;
 });
 
@@ -736,7 +773,8 @@ socket.on( 'onLoopChange', function( value ){
 
 // Play animation
 socket.on( 'play', function(){
-    if ( action && flags.isAnimationSync == true ){
+    if ( action ){
+        console.log("ENTROU")
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
@@ -748,19 +786,19 @@ socket.on( 'play', function(){
 
 // Restart animation
 socket.on( 'restart', function(){
-    if( action && flags.isAnimationSync == true)
+    if( action )
         action.reset();
 }); 
 
 // Stop animation
 socket.on( 'stop', function(){
-    if( action && flags.isAnimationSync == true)
+    if( action )
         action.stop();
 });
 
 // Grabbing timeline
 socket.on( 'grabbing', function( value ){
-    if( action && flags.isAnimationSync == true) {
+    if( action ) {
         if( action.isRunning() !== true ) 
             action.play();
         action.paused = true;
