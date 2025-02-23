@@ -9,6 +9,9 @@ import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js';
 import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
+import RightAxisWatcher from "./rightAxisWatcher";
+import LeftAxisWatcher from "./LeftAxisWatcher";
+
 var userName = prompt( "Please enter your name" );
 
 // Create a socket
@@ -45,6 +48,10 @@ var slider;
 
 // Controllers
 var geometry, controller1, controller2;
+
+// Controller X axis watcher
+var rightAxisWatcher = new RightAxisWatcher();
+var leftAxisWatcher = new LeftAxisWatcher();
 
 // Create a parent object for the camera: VRCamera Helper
 const cameraRig = new THREE.Group();
@@ -152,6 +159,9 @@ function init() {
         controller1.addEventListener('squeezestart', () => {
             console.log('Squeeze pressed');
         });
+
+        rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
+        leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
 
         const controllerModelFactory = new XRControllerModelFactory();
 
@@ -307,6 +317,33 @@ function render() {
 
     controls.update();
     renderer.render( scene, camera );
+
+    // Get Joystick Events on X axis
+    const session = renderer.xr.getSession();
+    if ( session ) {
+        for ( const source of session.inputSources ) {
+            if ( source.gamepad ) {
+                const axes = source.gamepad.axes;  
+
+                // Right Axis
+                if( axes[2] === 0 && axes[2] === rightAxisWatcher.value && source.handedness == "right" )
+                    continue;
+                else {
+                    if(source.handedness == "right" )
+                        rightAxisWatcher.value = axes[2]; 
+                }
+                   
+                // Left Axis
+                if( axes[2] === 0 && axes[2] === leftAxisWatcher.value && source.handedness == "left" )
+                    continue;
+                else {
+                    if(source.handedness == "left" )
+                        leftAxisWatcher.value = axes[2];
+                }
+            }
+        }
+    }
+    
 }
 
 // Initializate Scene
