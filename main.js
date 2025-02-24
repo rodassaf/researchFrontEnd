@@ -40,8 +40,8 @@ var flags = {
     isAnimationSync: true
 };
 
-// Mesh to hold the UI from a dom element and Group to hold Interactable objects
-var uiMesh, interactiveGroup;
+// Group to hold Interactable objects
+var interactiveGroup;
 
 // Slider of Timeline
 var slider;
@@ -66,9 +66,14 @@ var morphFolder, animationFolder, xrFolder, sliderMorphs=[];
 // Create an AnimationMixer and a clock for animation purposes
 var mixer, clock, action, currentClip;
 
-// Create object to bind with UI and be the Final VALUE: MORPH Object
+// Create object to bind with UI TweakPane and be the Final VALUE: MORPH Object
 var currentObjectSelection = {
     morphObject: 'none',
+};
+
+// Create animation object to bind ui TweakPane
+var animationClipObject = {
+    clip: 'none',
 };
 
 // Create a UI Pane
@@ -417,6 +422,44 @@ function onWindowResize() {
     renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
+// Timeline GUI *******************************************************
+
+document.getElementById( "playPause" ).onclick = playPause;
+document.getElementById( "restart" ).onclick = restart;
+document.getElementById( "stop" ).onclick = stop;
+
+function playPause() {
+    if ( action ){
+        // Emit play
+        if( flags.isAnimationSync == true )
+            socket.emit( 'play', animationClipObject.clip, action.time, animationFolder.children[1].controller.value.rawValue );
+        if( action.isRunning() !== true ) {
+            action.paused = false;
+            action.play();
+        }
+        else
+            action.paused = true;
+    } 
+}
+
+function restart() {
+    if ( action ){
+        // Emit restart
+        if( flags.isAnimationSync == true )
+            socket.emit( 'restart', animationClipObject.clip, animationFolder.children[1].controller.value.rawValue );
+        action.reset();
+    }
+}
+
+function stop() {
+    if ( action ){
+        // Emit stop
+        if( flags.isAnimationSync == true )
+            socket.emit( 'stop' );
+        action.stop();
+    }
+}
+
 // Get Slider
 slider = document.getElementById( "myTimeline" );
 
@@ -442,71 +485,38 @@ function updateFrameNumber() {
     frameNumber.textContent = value.toString().padStart(4, '0');;
 }
 
+function handleFollowUser( user ) {
+    console.log(user);
+
 // Text on Slider!!!!!
+    const slider = document.getElementById("myRange2");
+    const sliderValue = document.getElementById("slider-value");
+    sliderValue.textContent = user;
 
-/* const slider = document.getElementById("myRange2");
-const sliderValue = document.getElementById("slider-value");
+    function updateSliderValue() {
+        const sliderRect = slider.getBoundingClientRect();
+        const min = slider.min;
+        const max = slider.max;
+        const value = slider.value;
 
-function updateSliderValue() {
-    const sliderRect = slider.getBoundingClientRect();
-    const min = slider.min;
-    const max = slider.max;
-    const value = slider.value;
+        // Calculate percentage of the thumb position
+        const percent = (value - min) / (max - min);
+        const offset = (percent+0.04) * (sliderRect.width - 15); // Adjust for thumb width
 
-    // Calculate percentage of the thumb position
-    const percent = (value - min) / (max - min);
-    const offset = (percent+0.04) * (sliderRect.width - 15); // Adjust for thumb width
-
-    // Move the text dynamically
-    sliderValue.style.left = `${offset}px`;
-    //sliderValue.textContent = value;
-}
-
-// Update on input
-slider.addEventListener("input", updateSliderValue);
-
-// Initialize position
-updateSliderValue(); */
-
-
-
-// Timeline GUI *******************************************************
-
-document.getElementById( "playPause" ).onclick = playPause;
-document.getElementById( "restart" ).onclick = restart;
-document.getElementById( "stop" ).onclick = stop;
-
-function playPause() {
-    if ( action ){
-        // Emit play
-        if( flags.isAnimationSync == true )
-            socket.emit( 'play' );
-        if( action.isRunning() !== true ) {
-            action.paused = false;
-            action.play();
-        }
-        else
-            action.paused = true;
-    } 
-}
-
-function restart() {
-    if ( action ){
-        // Emit restart
-        if( flags.isAnimationSync == true )
-            socket.emit( 'restart' );
-        action.reset();
+        // Move the text dynamically
+        sliderValue.style.left = `${offset}px`;
+        //sliderValue.textContent = value;
     }
+
+    // Update on input
+    slider.addEventListener("input", updateSliderValue);
+
+    // Initialize position
+    updateSliderValue(); 
+
 }
 
-function stop() {
-    if ( action ){
-        // Emit stop
-        if( flags.isAnimationSync == true )
-            socket.emit( 'stop' );
-        action.stop();
-    }
-}
+
 
 // GUI ***************************************************************
 
@@ -535,10 +545,6 @@ function createGUI( model, animations) {
     let animationOptions = {
         none: 'none',
     };
-    // Create animation object to bind ui
-    let animationClipObject = {
-        clip: 'none',
-      };
     
     // Create animation loop boolean object to bind ui
     let animationLoop = {
@@ -553,6 +559,10 @@ function createGUI( model, animations) {
           {text: 'none', value: 'none'}
         ],
         value: 'none',
+      });
+
+      listFollowUsers.on( "change", function( ev ){
+        handleFollowUser( ev.value ); 
       });
 
     // Find objects with Morphs or Blendshapes
@@ -727,15 +737,10 @@ function createGUI( model, animations) {
             }
 
             if( ev.target.label === "sync" && ev.value == true){
-
-                if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', "none" ); 
                 if ( action ) {
                     action.reset();
                     action.stop();
                 }
-                action = null;
-                currentClip = null;
             }
 
         });
@@ -850,37 +855,64 @@ socket.on( 'onLoopChange', function( value ){
 }); 
 
 // Play animation
-socket.on( 'play', function(){
-    if ( action ){
-        if( action.isRunning() !== true ) {
-            action.paused = false;
-            action.play();
+socket.on( 'play', function( clip, time, loop ){
+    if( flags.isAnimationSync == true ){
+
+        if( animationClipObject.clip != clip )
+            animationFolder.children[0].controller.value.rawValue = clip;
+
+        if( animationFolder.children[1].controller.value.rawValue != loop )
+            animationFolder.children[1].controller.value.rawValue = loop;
+
+        if ( action ){
+            action.time = time;
+            mixer.update(0); // Apply the new time
+            updateFrameNumber();
+
+            if( action.isRunning() !== true ) {
+                action.paused = false;
+                action.play();
+            }
+            else
+                action.paused = true;
         }
-        else
-            action.paused = true;
     }
 }); 
 
 // Restart animation
-socket.on( 'restart', function(){
-    if( action )
-        action.reset();
+socket.on( 'restart', function( clip, loop ){
+    if( flags.isAnimationSync == true ){
+        if( animationClipObject.clip != clip )
+            animationFolder.children[0].controller.value.rawValue = clip;
+
+        if( animationFolder.children[1].controller.value.rawValue != loop )
+            animationFolder.children[1].controller.value.rawValue = loop;
+
+        if( action ) {
+            action.reset();
+            action.play();
+        }
+    }
 }); 
 
 // Stop animation
 socket.on( 'stop', function(){
-    if( action )
-        action.stop();
+    if( flags.isAnimationSync == true ){
+        if( action )
+            action.stop();
+    }
 });
 
 // Grabbing timeline
 socket.on( 'grabbing', function( value ){
-    if( action ) {
-        if( action.isRunning() !== true ) 
-            action.play();
-        action.paused = true;
-        action.time = value;
-        mixer.update(0); // Apply the new time
-        updateFrameNumber();
+    if( flags.isAnimationSync == true ){
+            if( action ) {
+                if( action.isRunning() !== true ) 
+                    action.play();
+                action.paused = true;
+                action.time = value;
+                mixer.update(0); // Apply the new time
+                updateFrameNumber();
+        }
     }
 });
