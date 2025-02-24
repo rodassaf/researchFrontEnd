@@ -66,14 +66,28 @@ var morphFolder, animationFolder, xrFolder, sliderMorphs=[];
 // Create an AnimationMixer and a clock for animation purposes
 var mixer, clock, action, currentClip;
 
+// Create object to bind with UI and be the Final VALUE: MORPH Object
+var currentObjectSelection = {
+    morphObject: 'none',
+};
+
 // Create a UI Pane
 const pane = new Pane({
     expanded: true,
   });
+
 // Create User Folder to show users
 const userFolder = pane.addFolder({
     title: 'Online Users',
   });
+
+// Create User Folder to show users
+const followFolder = pane.addFolder({
+    title: 'Follow Users',
+  });
+
+// Variable to receive the List Blade
+var listFollowUsers;
 
 // Instantiate a loader
 const loader = new GLTFLoader();
@@ -180,14 +194,18 @@ function init() {
         interactiveGroup.listenToXRControllerEvents( controller2 );
         scene.add( interactiveGroup );
 
-        // Create the UI in the 3D space
-        uiMesh = new HTMLMesh( pane.element );
-		uiMesh.position.x = - 3.75;
-        uiMesh.position.y = 1.5;
-        uiMesh.position.z = - 0.5;
-        uiMesh.rotation.y = Math.PI / 4;
-        uiMesh.scale.setScalar( 8 );
-        interactiveGroup.add( uiMesh );
+
+        // Create Timeline UI
+        // Create a line curve
+        const start = new THREE.Vector3(-3, -2, 0);
+        const end = new THREE.Vector3(3, 2, 0);
+        const lineCurve = new THREE.LineCurve3(start, end);
+        // Create a tube
+        const tubeGeometry = new THREE.TubeGeometry(lineCurve, 20, 0.05, 8, false);
+        const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+        scene.add(tube);
+
     }); 
 }
 
@@ -374,6 +392,9 @@ socket.once( 'checkWhosOnline', function( msg ){
             // Load an avatar
             loadAvatar( 'glb/avatarVr.glb', userCamera );
             
+            // Ad user into Follow Dropdown
+            addFollowOption( msg[ k ], msg[ k ] );
+
             // Add online users connected to the pane
             userFolder.addBlade({
                 view: 'text',
@@ -489,6 +510,18 @@ function stop() {
 
 // GUI ***************************************************************
 
+// Functions to add and remove itens from Follow Unsynced Users
+function addFollowOption( text, value ) {
+    const newOptions = [...listFollowUsers.options, { text, value }];
+    listFollowUsers.options = newOptions ;
+}
+
+function removeFollowOption( valueToRemove ) {
+    const newOptions = listFollowUsers.options.filter( opt => opt.value !== valueToRemove );
+    listFollowUsers.options = newOptions;
+}
+
+// Create the UI
 function createGUI( model, animations) {
     // Objects with morphs
     let objectsWithMorphTargets = [];
@@ -496,10 +529,7 @@ function createGUI( model, animations) {
     let objectOptions = {
         none: 'none',
     };
-    // Create object to bind with UI and be the Final VALUE
-    let currentObjectSelection = {
-        morphObject: 'none',
-    };
+
     let morphNameTargets = [];
     // Create object to bind with ui options
     let animationOptions = {
@@ -515,6 +545,16 @@ function createGUI( model, animations) {
         loop: false,
       };
     
+    // Create the Follow Dropdown menu and attribute a variable to get the list
+    listFollowUsers = followFolder.addBlade({
+        view: 'list',
+        label: 'user',
+        options: [
+          {text: 'none', value: 'none'}
+        ],
+        value: 'none',
+      });
+
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
             if ( object.isMesh && object.geometry.morphAttributes ) {
@@ -549,8 +589,10 @@ function createGUI( model, animations) {
         // Add sync option
         morphFolder.addBinding( flags, 'isMorphSync',  { label: 'sync', });
 
+
         // Event Handler for Morph Pane
-        morphFolder.on( 'change', function( ev ) {          
+        morphFolder.on( 'change', function( ev ) {        
+            
                 if( isNaN( ev.value ) === true ){
                     // Object List changed
                     currentObjectSelection.morphObject = ev.value;
@@ -579,7 +621,7 @@ function createGUI( model, animations) {
                         }    
                     }
 
-                    // Create the UI
+                    // Create the UI sliders
                     for( let i = 0; i < morphNameTargets.length; i++ ){
                         sliderMorphs[ i ] = {};
                         sliderMorphs[ i ][ morphNameTargets [ i ] ] = model.getObjectByName( ev.value ).morphTargetInfluences[ i ];
@@ -598,24 +640,17 @@ function createGUI( model, animations) {
                 } else {
 
                     if( ev.target.label === "sync" && ev.value == true ){
-                        for( let i = morphFolder.children.length-1; i > 0; i-- ) {
-                            morphFolder.children[ i ].dispose();
-                        }
-                        // Add sync option
-                        morphFolder.addBinding( flags, 'isMorphSync', { label: 'sync', });
-                        // Emit change of the object to none
-                        if( flags.isMorphSync == true )
-                            socket.emit( 'onObjectMorphChange', ev.value );
                         return;
                     }
-
+                   
                     // Sliders changed
-                    model.getObjectByName( currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+                    if( ev.target.label !== "sync" )
+                        model.getObjectByName( currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
    
                     if( ev.last !== true ){
                          // Emit Morph Target Slider Info
                         if( flags.isMorphSync == true )
-                            socket.emit( 'onSliderMorphChange', morphNameTargets.indexOf( ev.target.label ), ev.value );
+                            socket.emit( 'onSliderMorphChange', currentObjectSelection.morphObject, morphNameTargets.indexOf( ev.target.label ), ev.value );
 
                     }
                 }
@@ -646,11 +681,6 @@ function createGUI( model, animations) {
 
         // Add sync option
         animationFolder.addBinding( flags, 'isAnimationSync', { label: 'sync', } );
-
-        // Add button 
-        /* const btnPlayPause = animationFolder.addButton({
-            title: 'Play | Pause',
-          }); */
  
         // Event Handler for Morph Pane
         animationFolder.on( 'change', function( ev ) {  
@@ -697,6 +727,7 @@ function createGUI( model, animations) {
             }
 
             if( ev.target.label === "sync" && ev.value == true){
+
                 if( flags.isAnimationSync == true )
                     socket.emit( 'onClipChange', "none" ); 
                 if ( action ) {
@@ -742,7 +773,12 @@ socket.on( 'createCamera', function( msg ) {
 });
 
 // Behavior when receives morph target new values
-socket.on( 'onSliderMorphChange', function( morphTarget, value ) {
+socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
+    // Check if current Morph object is the same of the synced one
+    if( currentObjectSelection.morphObject != object ){
+        currentObjectSelection.morphObject = object;
+    }
+        
     let key = Object.keys( sliderMorphs[ morphTarget ] )
     if( sliderMorphs[ morphTarget ][ key ] !== value ){
         sliderMorphs[ morphTarget ][ key ] = value;
@@ -761,6 +797,9 @@ socket.on( 'userConnected', function( msg ) {
     
     // Add online users connected to the pane but not the current user
     if( msg !== userName ) {
+        // Add user into Follow DropDown
+        addFollowOption( msg, msg );
+
         userFolder.addBlade({
         view: 'text',
         label: 'user',
@@ -774,6 +813,8 @@ socket.on( 'userConnected', function( msg ) {
 socket.on( 'userDisconnected', function( msg ) {
     
     console.log( msg + " has disconnected " );
+    // remove user from list of follow
+    removeFollowOption( msg );
     let tempCameraHelper = scene.getObjectByName( msg );
 
     if( tempCameraHelper !== null ){
@@ -811,7 +852,6 @@ socket.on( 'onLoopChange', function( value ){
 // Play animation
 socket.on( 'play', function(){
     if ( action ){
-        console.log("ENTROU")
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
