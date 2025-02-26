@@ -94,6 +94,9 @@ const followFolder = pane.addFolder({
 // Variable to receive the List Blade
 var listFollowUsers;
 
+// Var to indicate who I am following
+var followUser = "none";
+
 // Instantiate a loader
 const loader = new GLTFLoader();
 
@@ -334,6 +337,7 @@ function render() {
         if ( action ) {
             let progress = ( action.time / currentClip.duration ) * 100;
             slider.value = progress; // Update slider to match animation
+            socket.emit( 'timelineUserFollow', userName, progress, currentClip );
             updateFrameNumber();
         }
     }
@@ -431,8 +435,9 @@ document.getElementById( "stop" ).onclick = stop;
 function playPause() {
     if ( action ){
         // Emit play
-        if( flags.isAnimationSync == true )
-            socket.emit( 'play', animationClipObject.clip, action.time, animationFolder.children[1].controller.value.rawValue );
+        if( flags.isAnimationSync == true ) {
+            socket.emit( 'play', animationClipObject.clip, action.time, animationFolder.children[ 1 ].controller.value.rawValue, userName );
+        } 
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
@@ -475,7 +480,7 @@ slider.addEventListener( "input", ( event ) => {
         updateFrameNumber();
         // Emit value
         if( flags.isAnimationSync == true )
-            socket.emit( 'grabbing', action.time );
+            socket.emit( 'grabbing', action.time, userName );
     }
 });
 
@@ -486,34 +491,26 @@ function updateFrameNumber() {
 }
 
 function handleFollowUser( user ) {
-    console.log(user);
 
-// Text on Slider!!!!!
+    followUser = user;
+
+    // Get the sliders
     const slider = document.getElementById("myRange2");
     const sliderValue = document.getElementById("slider-value");
-    sliderValue.textContent = user;
 
-    function updateSliderValue() {
-        const sliderRect = slider.getBoundingClientRect();
-        const min = slider.min;
-        const max = slider.max;
-        const value = slider.value;
-
-        // Calculate percentage of the thumb position
-        const percent = (value - min) / (max - min);
-        const offset = (percent+0.04) * (sliderRect.width - 15); // Adjust for thumb width
-
-        // Move the text dynamically
-        sliderValue.style.left = `${offset}px`;
-        //sliderValue.textContent = value;
+    if( user == "none" ){
+        // Make them visible
+        slider.style.visibility = "hidden";
+        sliderValue.style.visibility = "hidden";
+    } 
+    else{
+        // Make them visible
+        slider.style.visibility = "visible";
+        sliderValue.style.visibility = "visible";
     }
 
-    // Update on input
-    slider.addEventListener("input", updateSliderValue);
-
-    // Initialize position
-    updateSliderValue(); 
-
+    // Add the UserName on the UI Box
+    sliderValue.textContent = user;
 }
 
 
@@ -556,14 +553,14 @@ function createGUI( model, animations) {
         view: 'list',
         label: 'user',
         options: [
-          {text: 'none', value: 'none'}
+            { text: 'none', value: 'none' }
         ],
         value: 'none',
-      });
+    });
 
-      listFollowUsers.on( "change", function( ev ){
+    listFollowUsers.on( "change", function( ev ){
         handleFollowUser( ev.value ); 
-      });
+    });
 
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
@@ -698,7 +695,7 @@ function createGUI( model, animations) {
             if( ev.target.label === "clip" && ev.value !== "none" ){
                 // Emit change of the clip
                 if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value );                        
+                    socket.emit( 'onClipChange', ev.value, userName );                        
                 // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
                 // Save as a global variable
@@ -718,7 +715,7 @@ function createGUI( model, animations) {
             if( ev.target.label === "clip" && ev.value === "none" ){
                 // Emit change of the clip
                 if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value ); 
+                    socket.emit( 'onClipChange', ev.value, userName ); 
                 if ( action )
                     action.stop();
                 action = null;
@@ -765,7 +762,6 @@ function createGUI( model, animations) {
 // Behavior when receives CreateCamera msg
 socket.on( 'createCamera', function( msg ) {
     // msg is the userNamer
-    console.log( msg );
     let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
     scene.add( userCamera );
     let cameraHelper = new THREE.CameraHelper( userCamera );
@@ -859,14 +855,14 @@ socket.on( 'play', function( clip, time, loop ){
     if( flags.isAnimationSync == true ){
 
         if( animationClipObject.clip != clip )
-            animationFolder.children[0].controller.value.rawValue = clip;
+            animationFolder.children[ 0 ].controller.value.rawValue = clip;
 
-        if( animationFolder.children[1].controller.value.rawValue != loop )
-            animationFolder.children[1].controller.value.rawValue = loop;
+        if( animationFolder.children[ 1 ].controller.value.rawValue != loop )
+            animationFolder.children[ 1 ].controller.value.rawValue = loop;
 
         if ( action ){
             action.time = time;
-            mixer.update(0); // Apply the new time
+            mixer.update( 0 ); // Apply the new time
             updateFrameNumber();
 
             if( action.isRunning() !== true ) {
@@ -879,14 +875,46 @@ socket.on( 'play', function( clip, time, loop ){
     }
 }); 
 
+// Play animation of a follow user
+socket.on( 'timelineUserFollow', function( user, progress, clip ){
+
+    if( followUser == user && followUser != "none" ){
+          // Get the sliders
+        const slider = document.getElementById( "myRange2" );
+        const sliderValue = document.getElementById( "slider-value" );
+
+        function updateSliderValue() {
+            const sliderRect = slider.getBoundingClientRect();
+            const min = slider.min;
+            const max = slider.max;
+            const value = slider.value;
+    
+            // Calculate percentage of the thumb position
+            const percent = ( value - min ) / ( max - min );
+            const offset = ( percent + 0.04 ) * ( sliderRect.width - 15 ); // Adjust for thumb width
+    
+            // Move the text dynamically
+            sliderValue.style.left = `${offset}px`;
+            //sliderValue.textContent = value;
+        }
+    
+        // Update on input
+        // slider.addEventListener("input", updateSliderValue);
+    
+        // Initialize position
+        slider.value = progress;
+        updateSliderValue(); 
+    }
+}); 
+
 // Restart animation
 socket.on( 'restart', function( clip, loop ){
     if( flags.isAnimationSync == true ){
         if( animationClipObject.clip != clip )
-            animationFolder.children[0].controller.value.rawValue = clip;
+            animationFolder.children[ 0 ].controller.value.rawValue = clip;
 
-        if( animationFolder.children[1].controller.value.rawValue != loop )
-            animationFolder.children[1].controller.value.rawValue = loop;
+        if( animationFolder.children[ 1 ].controller.value.rawValue != loop )
+            animationFolder.children[ 1 ].controller.value.rawValue = loop;
 
         if( action ) {
             action.reset();
@@ -911,7 +939,7 @@ socket.on( 'grabbing', function( value ){
                     action.play();
                 action.paused = true;
                 action.time = value;
-                mixer.update(0); // Apply the new time
+                mixer.update( 0 ); // Apply the new time
                 updateFrameNumber();
         }
     }

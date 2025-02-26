@@ -115,7 +115,8 @@ body {
     opacity: 1;
     -webkit-transition: .2s;
     transition: opacity .2s;
-    pointer-events: none; 
+    pointer-events: none;
+    visibility: hidden;
 }
 
 .sliderConnected::-webkit-slider-thumb {
@@ -124,7 +125,6 @@ body {
     width: 15px;
     height: 15px;
     border-radius: 15px;
-
     background: #076145;
     cursor: pointer;
 }
