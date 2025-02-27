@@ -5,7 +5,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Pane } from 'tweakpane';
 
-import { HTMLMesh } from 'three/addons/interactive/HTMLMesh.js';
 import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
@@ -25,7 +24,7 @@ var socket = io( "http://localhost:3000" , {
     } 
 });
 
-// Global variables
+// Global variables ***************************************************************
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
@@ -53,12 +52,9 @@ var geometry, controller1, controller2;
 var rightAxisWatcher = new RightAxisWatcher();
 var leftAxisWatcher = new LeftAxisWatcher();
 
-// Create a parent object for the camera: VRCamera Helper
-const cameraRig = new THREE.Group();
-scene.add( cameraRig );
-
-// Add the camera to the parent object
-cameraRig.add( camera );
+// Variable to check XR Camera position
+let lastPosition = new THREE.Vector3();
+let lastQuaternion = new THREE.Quaternion();
 
 // UI variables
 var morphFolder, animationFolder, xrFolder, sliderMorphs=[];
@@ -156,65 +152,85 @@ function init() {
     controls.addEventListener( 'change', noXRCameraUpdate );
 
     // Trigger event when a XR session is started
-    renderer.xr.addEventListener( 'sessionstart', function( event ) {
-        // Remove keyboard controls
-        controls.removeEventListener( 'change', noXRCameraUpdate )
-        controls.dispose();
+    renderer.xr.addEventListener( 'sessionstart', startXR);
+}
 
-        // Create controllers
-        geometry = new THREE.BufferGeometry();
-        geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
+// XR **************************************************************************
+function startXR( event ) {
+    // Remove keyboard controls
+    controls.removeEventListener( 'change', noXRCameraUpdate )
+    controls.dispose();
 
-        controller1 = renderer.xr.getController( 0 );
-        controller1.add( new THREE.Line( geometry ) );
-        scene.add( controller1 );
+    // Create controllers
+    geometry = new THREE.BufferGeometry();
+    geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
 
-        controller2 = renderer.xr.getController( 1 );
-        controller2.add( new THREE.Line( geometry ) );
-        scene.add( controller2 );
+    controller1 = renderer.xr.getController( 0 );
+    controller1.add( new THREE.Line( geometry ) );
+    scene.add( controller1 );
 
-        // Controller Events
-        controller1.addEventListener('selectstart', () => {
-            console.log('Select pressed');
-        });
+    controller2 = renderer.xr.getController( 1 );
+    controller2.add( new THREE.Line( geometry ) );
+    scene.add( controller2 );
 
-        controller1.addEventListener('squeezestart', () => {
-            console.log('Squeeze pressed');
-        });
+    // Controller Events
+    controller1.addEventListener('selectstart', () => {
+        console.log('Select pressed');
+    });
 
-        rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
-        leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
+    controller1.addEventListener('squeezestart', () => {
+        console.log('Squeeze pressed');
+    });
 
-        const controllerModelFactory = new XRControllerModelFactory();
+    rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
+    leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
 
-        const controllerGrip1 = renderer.xr.getControllerGrip( 0 );
-        controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) );
-        scene.add( controllerGrip1 );
+    const controllerModelFactory = new XRControllerModelFactory();
 
-        const controllerGrip2 = renderer.xr.getControllerGrip( 1 );
-        controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) );
-        scene.add( controllerGrip2 );
+    const controllerGrip1 = renderer.xr.getControllerGrip( 0 );
+    controllerGrip1.add( controllerModelFactory.createControllerModel( controllerGrip1 ) );
+    scene.add( controllerGrip1 );
 
-        // Set new interactive group
-        interactiveGroup = new InteractiveGroup();
-        interactiveGroup.listenToPointerEvents( renderer, camera );
-        interactiveGroup.listenToXRControllerEvents( controller1 );
-        interactiveGroup.listenToXRControllerEvents( controller2 );
-        scene.add( interactiveGroup );
+    const controllerGrip2 = renderer.xr.getControllerGrip( 1 );
+    controllerGrip2.add( controllerModelFactory.createControllerModel( controllerGrip2 ) );
+    scene.add( controllerGrip2 );
+
+    // Set new interactive group
+    interactiveGroup = new InteractiveGroup();
+    interactiveGroup.listenToPointerEvents( renderer, camera );
+    interactiveGroup.listenToXRControllerEvents( controller1 );
+    interactiveGroup.listenToXRControllerEvents( controller2 );
+    scene.add( interactiveGroup );
 
 
-        // Create Timeline UI
-        // Create a line curve
-        const start = new THREE.Vector3(-3, -2, 0);
-        const end = new THREE.Vector3(3, 2, 0);
-        const lineCurve = new THREE.LineCurve3(start, end);
-        // Create a tube
-        const tubeGeometry = new THREE.TubeGeometry(lineCurve, 20, 0.05, 8, false);
-        const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-        scene.add(tube);
+    // Create Timeline UI
+    // Create a line curve
+    const start = new THREE.Vector3(-3, -2, 0);
+    const end = new THREE.Vector3(3, 2, 0);
+    const lineCurve = new THREE.LineCurve3(start, end);
+    // Create a tube
+    const tubeGeometry = new THREE.TubeGeometry(lineCurve, 20, 0.05, 8, false);
+    const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+    scene.add(tube);
+} 
 
-    }); 
+function trackVRHeadset() {
+    // Get WebXR camera
+    let xrCamera = renderer.xr.getCamera( camera ); 
+    
+    // Get head position
+    let position = xrCamera.position.clone();
+    // Get head rotation (Quaternion)
+    let quaternion = xrCamera.quaternion.clone();
+  
+    // Check if position or rotation changed
+    if ( !position.equals( lastPosition ) || !quaternion.equals( lastQuaternion ) ) {
+        // Update last values
+        lastPosition.copy( position );
+        lastQuaternion.copy( quaternion );
+        rotateFaceAvatar( lastPosition, lastQuaternion );
+    }
 }
 
 
@@ -307,11 +323,11 @@ function fitCameraToObject( camera, object, offset, controls ) {
 }
 
 // Function to find a blade by label
-function findBladeByLabel(pane, label) {
-    return pane.children.find(( child ) => child.controller.value.value_ === label);
+function findBladeByLabel( pane, label ){
+    return pane.children.find(( child ) => child.controller.value.value_ === label );
 }
 
-function noXRCameraUpdate () {
+function noXRCameraUpdate(){
     socket.emit( 'updateCamera', { 
         userName: userName,
         x: camera.position.x,
@@ -320,6 +336,15 @@ function noXRCameraUpdate () {
         lx: camera.rotation.x,
         ly: camera.rotation.y,
         lz: camera.rotation.z 
+        } 
+    );
+}
+
+function rotateFaceAvatar( pos, quat ){
+    socket.emit( 'updateXRCamera', { 
+        userName: userName,
+        pos: pos,
+        rot: quat
         } 
     );
 }
@@ -345,9 +370,13 @@ function render() {
     controls.update();
     renderer.render( scene, camera );
 
-    // Get Joystick Events on X axis
+    // Get Joystick Events on X axis from a XR Session only
     const session = renderer.xr.getSession();
+    // XR Session
     if ( session ) {
+
+        trackVRHeadset();
+
         for ( const source of session.inputSources ) {
             if ( source.gamepad ) {
                 const axes = source.gamepad.axes;  
@@ -512,8 +541,6 @@ function handleFollowUser( user ) {
     // Add the UserName on the UI Box
     sliderValue.textContent = user;
 }
-
-
 
 // GUI ***************************************************************
 
@@ -775,21 +802,25 @@ socket.on( 'createCamera', function( msg ) {
 
 // Behavior when receives morph target new values
 socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
-    // Check if current Morph object is the same of the synced one
-    if( currentObjectSelection.morphObject != object ){
-        currentObjectSelection.morphObject = object;
-    }
-        
-    let key = Object.keys( sliderMorphs[ morphTarget ] )
-    if( sliderMorphs[ morphTarget ][ key ] !== value ){
-        sliderMorphs[ morphTarget ][ key ] = value;
-        pane.refresh();
+    if( flags.isMorphSync == true ){
+        // Check if current Morph object is the same of the synced one
+        if( currentObjectSelection.morphObject != object ){
+            currentObjectSelection.morphObject = object;
+        }
+            
+        let key = Object.keys( sliderMorphs[ morphTarget ] )
+        if( sliderMorphs[ morphTarget ][ key ] !== value ){
+            sliderMorphs[ morphTarget ][ key ] = value;
+            pane.refresh();
+        }
     }
 });
 
 // Behavior when receives object morph changes
 socket.on( 'onObjectMorphChange', function( value ) {
+    if( flags.isMorphSync == true ){
         morphFolder.children[0].controller.value.rawValue = value;
+    }
 });
 
 // Behavior when a user connects
@@ -830,13 +861,25 @@ socket.on( 'userDisconnected', function( msg ) {
     bladeDisposal.dispose();
 });
 
+// On non XR camera change
 socket.on( 'updateCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
     tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
-});   
+});
+
+// On XR camera change
+socket.on( 'updateXRCamera', function( msg ){
+    let tempCameraHelper = scene.getObjectByName( msg.userName );
+    let mycamera = tempCameraHelper.camera;
+    mycamera.position.copy( msg.pos );
+   let quaternion = new THREE.Quaternion(msg.rot[0], msg.rot[1], msg.rot[2], msg.rot[3]);
+    mycamera.quaternion.copy( quaternion );
+    mycamera.updateProjectionMatrix();
+    tempCameraHelper.update();
+});  
 
 // On clip change
 socket.on( 'onClipChange', function( clip ){
