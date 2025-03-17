@@ -124,6 +124,7 @@ function init() {
         'glb/RobotExpressive.glb',
         // called when the resource is loaded
         function ( gltf ) {
+            gltf.scene.scale.set( 0.4, 0.4, 0.4 );
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
             gltf.scenes; // Array<THREE.Group>
@@ -204,15 +205,28 @@ function startXR( event ) {
 
 
     // Create Timeline UI
-    // Create a line curve
-    const start = new THREE.Vector3(-3, -2, 0);
-    const end = new THREE.Vector3(3, 2, 0);
-    const lineCurve = new THREE.LineCurve3(start, end);
-    // Create a tube
-    const tubeGeometry = new THREE.TubeGeometry(lineCurve, 20, 0.05, 8, false);
-    const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-    const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-    scene.add(tube);
+    // Load a glTF resource
+    loader.load(
+        // resource URL
+        'glb/timeline.glb',
+        // called when the resource is loaded
+        function ( gltf ) {
+            gltf.scene.scale.set( 8, 8, 8 );
+            gltf.scene.rotation.y = - Math.PI / 2;
+            gltf.scene.position.y = 0.04;
+            controller1.add( gltf.scene );
+        },
+        // called while loading is progressing
+        function ( xhr ) {
+            console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+        },
+        // called when loading has errors
+        function ( error ) {
+            console.log( 'An error happened' );
+        }
+    );
+
+    
 } 
 
 function trackVRHeadset() {
