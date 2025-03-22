@@ -384,6 +384,9 @@ function render() {
     controls.update();
     renderer.render( scene, camera );
 
+    // Emit camera position to others who want to follow me
+    socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
+
     // Get Joystick Events on X axis from a XR Session only
     const session = renderer.xr.getSession();
     // XR Session
@@ -536,6 +539,16 @@ function updateFrameNumber() {
 function handleFollowUser( user ) {
 
     followUser = user;
+    if( user !== "none" ){
+        // Remove keyboard controls
+        controls.enabled = false;
+    } else {
+        // Add keyboard controls back
+        controls.enabled = true;
+    }
+
+
+/*     followUser = user;
 
     // Get the sliders
     const slider = document.getElementById("myRange2");
@@ -553,7 +566,9 @@ function handleFollowUser( user ) {
     }
 
     // Add the UserName on the UI Box
-    sliderValue.textContent = user;
+    sliderValue.textContent = user; */
+
+
 }
 
 // GUI ***************************************************************
@@ -963,6 +978,15 @@ socket.on( 'timelineUserFollow', function( user, progress, clip ){
         updateSliderValue(); 
     }
 }); 
+
+// Follow camera User
+socket.on( 'cameraUserFollow', function( user, cameraPosition, cameraRotation ){ 
+    if( followUser !== "none" ){
+        camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        camera.rotation.set(cameraRotation.x, cameraRotation.y, cameraRotation.z);
+    }
+
+});
 
 // Restart animation
 socket.on( 'restart', function( clip, loop ){
