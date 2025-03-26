@@ -90,6 +90,16 @@ const followFolder = pane.addFolder({
 // Variable to receive the List Blade
 var listFollowUsers;
 
+// Create the Follow Dropdown menu and attribute a variable to get the list
+listFollowUsers = followFolder.addBlade({
+    view: 'list',
+    label: 'user',
+    options: [
+        { text: 'none', value: 'none' }
+    ],
+    value: 'none',
+});
+
 // Var to indicate who I am following
 var followUser = "none";
 
@@ -447,7 +457,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             // Load an avatar
             loadAvatar( 'glb/avatarVr.glb', userCamera );
             
-            // Ad user into Follow Dropdown
+            // Add user into Follow Dropdown
             addFollowOption( msg[ k ], msg[ k ] );
 
             // Add online users connected to the pane
@@ -531,9 +541,9 @@ slider.addEventListener( "input", ( event ) => {
 });
 
 function updateFrameNumber() {
-    let frameNumber = document.getElementById( "frameNumber" )
+    let frameNumber = document.getElementById( "frameNumber" );
     let value = slider.value;
-    frameNumber.textContent = value.toString().padStart(4, '0');;
+    frameNumber.textContent = value.toString().padStart(4, '0');
 }
 
 function handleFollowUser( user ) {
@@ -604,15 +614,6 @@ function createGUI( model, animations) {
         loop: false,
       };
     
-    // Create the Follow Dropdown menu and attribute a variable to get the list
-    listFollowUsers = followFolder.addBlade({
-        view: 'list',
-        label: 'user',
-        options: [
-            { text: 'none', value: 'none' }
-        ],
-        value: 'none',
-    });
 
     listFollowUsers.on( "change", function( ev ){
         handleFollowUser( ev.value ); 
