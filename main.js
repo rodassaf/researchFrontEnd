@@ -1059,17 +1059,18 @@ socket.on( 'stop', function(){
 // Update the sliders
 socket.on( 'askSync', function( user, sync, progress ){
     if( flags.isAnimationSync == true && sync == true ){
-    
+        console.log("HERE1")
             // Get the sliders from others
             let slider = document.getElementById( "slider" + user );
             let sliderValue = document.getElementById( "sliderString" + user );
             
             slider.value = progress;
             updateSliderValue( slider, sliderValue ); 
-        
+            return;
     }
-
-    if( flags.isAnimationSync == true && sync == false ){
+    console.log("HERE2")
+/*    if(  ){
+    console.log("HERE2")
     
         // Get the sliders from others
         let slider = document.getElementById( "slider" + user );
@@ -1078,7 +1079,7 @@ socket.on( 'askSync', function( user, sync, progress ){
         slider.value = progress;
         updateSliderValue( slider, sliderValue ); 
     
-}
+} */
 });
 
 // Grabbing timeline
@@ -1107,8 +1108,8 @@ socket.on( 'grabbing', function( value, progress, sync, user ){
         }
     }
 
-    if( sync == false ){
-         
+    if( sync == false || sync== true ){
+        console.log("HALLO")
         // Get the sliders
         let slider = document.getElementById( "slider" + user );
         let sliderValue = document.getElementById( "sliderString" + user );
