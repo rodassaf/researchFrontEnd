@@ -87,6 +87,9 @@ const followFolder = pane.addFolder({
     title: 'Follow Users',
   });
 
+// List of users and sync info as objects
+var arrayUsers = [];
+
 // Variable to receive the List Blade
 var listFollowUsers;
 
@@ -157,7 +160,7 @@ function init() {
 
     document.body.appendChild( renderer.domElement );
     document.body.appendChild( VRButton.createButton( renderer ) );
-    document.getElementById( "VRButton" ).style = "hidden";
+    document.getElementById( "VRButton" ).style.visibility = "hidden";
   
     // Trigger event when a not XR camera is being manipulated
     controls.addEventListener( 'change', noXRCameraUpdate );
@@ -383,7 +386,7 @@ function render() {
     if ( mixer ) {
         mixer.update( dt );
         // Sync slider with animation
-        if ( action ) {
+        if ( action && action.isRunning() ) {
             let progress = ( action.time / currentClip.duration ) * 100;
             slider.value = progress; // Update slider to match animation
             socket.emit( 'timelineUserFollow', userName, progress, currentClip );
@@ -409,19 +412,19 @@ function render() {
                 const axes = source.gamepad.axes;  
 
                 // Right Axis
-                if( axes[2] === 0 && axes[2] === rightAxisWatcher.value && source.handedness == "right" )
+                if( axes[ 2 ] === 0 && axes[ 2 ] === rightAxisWatcher.value && source.handedness == "right" )
                     continue;
                 else {
                     if(source.handedness == "right" )
-                        rightAxisWatcher.value = axes[2]; 
+                        rightAxisWatcher.value = axes[ 2 ]; 
                 }
                    
                 // Left Axis
-                if( axes[2] === 0 && axes[2] === leftAxisWatcher.value && source.handedness == "left" )
+                if( axes[ 2 ] === 0 && axes[2] === leftAxisWatcher.value && source.handedness == "left" )
                     continue;
                 else {
                     if(source.handedness == "left" )
-                        leftAxisWatcher.value = axes[2];
+                        leftAxisWatcher.value = axes[ 2 ];
                 }
             }
         }
@@ -436,41 +439,6 @@ animate();
 // Emit Create Camera
 socket.emit( 'createCamera', userName );
 
-// Check existing users and add their cameras - only happens one time
-socket.once( 'checkWhosOnline', function( msg ){
-    // Add current user to the pane
-    userFolder.addBlade({
-    view: 'text',
-    label: 'user (me)',
-    parse: ( v ) => String( v ),
-    value: userName,
-    });
-
-    // If there are more users online
-    if( msg.length > 0 ){
-        for( let k=0; k<msg.length; k++ ){
-            let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-            let cameraHelper = new THREE.CameraHelper( userCamera );
-            cameraHelper.name = msg[ k ];
-            scene.add( userCamera );
-            scene.add( cameraHelper );
-            // Load an avatar
-            loadAvatar( 'glb/avatarVr.glb', userCamera );
-            
-            // Add user into Follow Dropdown
-            addFollowOption( msg[ k ], msg[ k ] );
-
-            // Add online users connected to the pane
-            userFolder.addBlade({
-                view: 'text',
-                label: 'user',
-                parse: ( v ) => String( v ),
-                value: msg[ k ],
-              });
-        }
-        console.log('Added '+msg.length+' Cameras')
-    }
-});
 
 // Windows Behaviour & Events *****************************************
 
@@ -507,7 +475,7 @@ function restart() {
     if ( action ){
         // Emit restart
         if( flags.isAnimationSync == true )
-            socket.emit( 'restart', animationClipObject.clip, animationFolder.children[1].controller.value.rawValue );
+            socket.emit( 'restart', animationClipObject.clip, animationFolder.children[ 1 ].controller.value.rawValue );
         action.reset();
     }
 }
@@ -534,9 +502,10 @@ slider.addEventListener( "input", ( event ) => {
         action.time = sliderValue * currentClip.duration;
         mixer.update(0); // Apply the new time
         updateFrameNumber();
+        let progress = ( action.time / currentClip.duration ) * 100;
         // Emit value
-        if( flags.isAnimationSync == true )
-            socket.emit( 'grabbing', action.time, userName );
+        //if( flags.isAnimationSync == true )
+        socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName );
     }
 });
 
@@ -556,29 +525,22 @@ function handleFollowUser( user ) {
         // Add keyboard controls back
         controls.enabled = true;
     }
+}
 
+// Function to update Slider Value
+function updateSliderValue( slider, sliderValue ) {
+    const sliderRect = slider.getBoundingClientRect();
+    const min = slider.min;
+    const max = slider.max;
+    const value = slider.value;
 
-/*     followUser = user;
+    // Calculate percentage of the thumb position
+    const percent = ( value - min ) / ( max - min );
+    const offset = ( percent + 0.04 ) * ( sliderRect.width - 15 ); // Adjust for thumb width
 
-    // Get the sliders
-    const slider = document.getElementById("myRange2");
-    const sliderValue = document.getElementById("slider-value");
-
-    if( user == "none" ){
-        // Make them visible
-        slider.style.visibility = "hidden";
-        sliderValue.style.visibility = "hidden";
-    } 
-    else{
-        // Make them visible
-        slider.style.visibility = "visible";
-        sliderValue.style.visibility = "visible";
-    }
-
-    // Add the UserName on the UI Box
-    sliderValue.textContent = user; */
-
-
+    // Move the text dynamically
+    sliderValue.style.left = `${offset}px`;
+    //sliderValue.textContent = value;
 }
 
 // GUI ***************************************************************
@@ -751,8 +713,8 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value !== "none" ){
                 // Emit change of the clip
-                if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value, userName );                        
+               // if( flags.isAnimationSync == true )
+                    socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName );                        
                 // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
                 // Save as a global variable
@@ -771,8 +733,8 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value === "none" ){
                 // Emit change of the clip
-                if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value, userName ); 
+              //  if( flags.isAnimationSync == true )
+                    socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName ); 
                 if ( action )
                     action.stop();
                 action = null;
@@ -795,6 +757,9 @@ function createGUI( model, animations) {
                     action.reset();
                     action.stop();
                 }
+            }
+            if( ev.target.label === "sync" && ev.value == false){
+                
             }
 
         });
@@ -868,6 +833,84 @@ socket.on( 'userConnected', function( msg ) {
         parse: ( v ) => String( v ),
         value: msg,
         });
+
+         // Create Timeline Sliders and its attributes
+        let slider = document.createElement( 'input' );
+        slider.type = 'range';
+        slider.min = '1';
+        slider.max = '100';
+        slider.value = '1';
+        slider.className = 'sliderConnected';
+        slider.id = 'slider' + msg;
+        // Create Slider Name
+        let sliderString = document.createElement( 'span' );
+        sliderString.id = "sliderString" + msg;
+        sliderString.className = "slider-value";
+        sliderString.style.visibility = "hidden";
+        sliderString.innerHTML = msg;
+        // Add into the scene
+        document.querySelector('.sliderContainer4Connected').appendChild(slider);
+        document.querySelector('.sliderContainer4Connected').appendChild(sliderString);
+
+     //   let user = { userName: msg, sync: true };
+     //   arrayUsers.push( user );
+    }
+});
+
+// Check existing users and add their cameras - only happens one time
+socket.once( 'checkWhosOnline', function( msg ){
+    // Add current user to the pane
+    userFolder.addBlade({
+        view: 'text',
+        label: 'user (me)',
+        parse: ( v ) => String( v ),
+        value: userName,
+    });
+
+    // If there are more users online
+    if( msg.length > 0 ){
+        for( let k=0; k<msg.length; k++ ){
+            let userCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+            let cameraHelper = new THREE.CameraHelper( userCamera );
+            cameraHelper.name = msg[ k ];
+            scene.add( userCamera );
+            scene.add( cameraHelper );
+            // Load an avatar
+            loadAvatar( 'glb/avatarVr.glb', userCamera );
+            
+            // Add user into Follow Dropdown
+            addFollowOption( msg[ k ], msg[ k ] );
+
+            // Add online users connected to the pane
+            userFolder.addBlade({
+                view: 'text',
+                label: 'user',
+                parse: ( v ) => String( v ),
+                value: msg[ k ],
+            });
+
+            if( document.getElementById( "slider" + msg[ k ] ) == null ){
+                // Create Timeline Sliders and its attributes
+                let slider = document.createElement( 'input' );
+                slider.type = 'range';
+                slider.min = '1';
+                slider.max = '100';
+                slider.value = '1';
+                slider.className = 'sliderConnected';
+                slider.id = 'slider' + msg[ k ];
+                // Create Slider Name
+                let sliderString = document.createElement( 'span' );
+                sliderString.id = "sliderString" + msg[ k ];
+                sliderString.className = "slider-value";
+                sliderString.style.visibility = "hidden";
+                sliderString.innerHTML = msg[ k ];
+                // Add into the scene
+                document.querySelector('.sliderContainer4Connected').appendChild(slider);
+                document.querySelector('.sliderContainer4Connected').appendChild(sliderString);
+            }       
+            
+        }
+        console.log('Added '+msg.length+' Cameras');
     }
 });
 
@@ -894,8 +937,8 @@ socket.on( 'userDisconnected', function( msg ) {
 // On non XR camera change
 socket.on( 'updateCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
-    tempCameraHelper.camera.position.set(msg.x, msg.y, msg.z);
-    tempCameraHelper.camera.rotation.set(msg.lx, msg.ly, msg.lz);
+    tempCameraHelper.camera.position.set( msg.x, msg.y, msg.z );
+    tempCameraHelper.camera.rotation.set( msg.lx, msg.ly, msg.lz );
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
 });
@@ -905,22 +948,40 @@ socket.on( 'updateXRCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     let mycamera = tempCameraHelper.camera;
     mycamera.position.copy( msg.pos );
-   let quaternion = new THREE.Quaternion(msg.rot[0], msg.rot[1], msg.rot[2], msg.rot[3]);
+   let quaternion = new THREE.Quaternion( msg.rot[ 0 ], msg.rot[ 1 ], msg.rot[ 2 ], msg.rot[ 3 ] );
     mycamera.quaternion.copy( quaternion );
     mycamera.updateProjectionMatrix();
     tempCameraHelper.update();
 });  
 
 // On clip change
-socket.on( 'onClipChange', function( clip ){
-    if( flags.isAnimationSync == true )
-        animationFolder.children[0].controller.value.rawValue = clip;
+socket.on( 'onClipChange', function( clip, sync, user ){
+
+    // Update the UI
+    if( flags.isAnimationSync == true && sync == true )
+        animationFolder.children[ 0 ].controller.value.rawValue = clip;
+    
+    // Check if it is the same clip running
+    if( currentClip && clip == currentClip.name ) {
+        document.getElementById( "slider" + user ).style.visibility = "visible";
+        document.getElementById( "sliderString" + user ).style.visibility = "visible";
+    } else {
+        document.getElementById( "slider" + user ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+    }
+
+    // Make sure the slider is hidden when NONE is selected
+    if( clip.name == "none" ){
+        document.getElementById( "slider" + user ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+    }
+  
 }); 
 
 // On loop change
 socket.on( 'onLoopChange', function( value ){
     if( flags.isAnimationSync == true )
-        animationFolder.children[1].controller.value.rawValue = value;
+        animationFolder.children[ 1 ].controller.value.rawValue = value;
 }); 
 
 // Play animation
@@ -951,32 +1012,14 @@ socket.on( 'play', function( clip, time, loop ){
 // Play animation of a follow user
 socket.on( 'timelineUserFollow', function( user, progress, clip ){
 
-    if( followUser == user && followUser != "none" ){
-          // Get the sliders
-        const slider = document.getElementById( "myRange2" );
-        const sliderValue = document.getElementById( "slider-value" );
-
-        function updateSliderValue() {
-            const sliderRect = slider.getBoundingClientRect();
-            const min = slider.min;
-            const max = slider.max;
-            const value = slider.value;
-    
-            // Calculate percentage of the thumb position
-            const percent = ( value - min ) / ( max - min );
-            const offset = ( percent + 0.04 ) * ( sliderRect.width - 15 ); // Adjust for thumb width
-    
-            // Move the text dynamically
-            sliderValue.style.left = `${offset}px`;
-            //sliderValue.textContent = value;
-        }
-    
-        // Update on input
-        // slider.addEventListener("input", updateSliderValue);
-    
+    if( currentClip && clip.name == currentClip.name ){
+        // Get the sliders
+        let slider = document.getElementById( "slider" + user );
+        let sliderValue = document.getElementById( "sliderString" + user );
+       
         // Initialize position
         slider.value = progress;
-        updateSliderValue(); 
+        updateSliderValue( slider, sliderValue ); 
     }
 }); 
 
@@ -1013,16 +1056,68 @@ socket.on( 'stop', function(){
     }
 });
 
+// Update the sliders
+socket.on( 'askSync', function( user, sync, progress ){
+    if( flags.isAnimationSync == true && sync == true ){
+    
+            // Get the sliders from others
+            let slider = document.getElementById( "slider" + user );
+            let sliderValue = document.getElementById( "sliderString" + user );
+            
+            slider.value = progress;
+            updateSliderValue( slider, sliderValue ); 
+        
+    }
+
+    if( flags.isAnimationSync == true && sync == false ){
+    
+        // Get the sliders from others
+        let slider = document.getElementById( "slider" + user );
+        let sliderValue = document.getElementById( "sliderString" + user );
+        
+        slider.value = progress;
+        updateSliderValue( slider, sliderValue ); 
+    
+}
+});
+
 // Grabbing timeline
-socket.on( 'grabbing', function( value ){
-    if( flags.isAnimationSync == true ){
-            if( action ) {
-                if( action.isRunning() !== true ) 
-                    action.play();
-                action.paused = true;
-                action.time = value;
-                mixer.update( 0 ); // Apply the new time
-                updateFrameNumber();
+socket.on( 'grabbing', function( value, progress, sync, user ){
+    
+    // ReTell everyone what is the current status
+    socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
+
+    if( flags.isAnimationSync == true && sync == true ){
+        if( action ) {
+            if( action.isRunning() !== true ) 
+                action.play();
+            action.paused = true;
+            action.time = value;
+            mixer.update( 0 ); // Apply the new time
+            updateFrameNumber();
+
+            // Update the current slider
+            document.getElementById( "myTimeline" ).value = progress; // Update slider to match animation
+            // Get the sliders from others
+            let slider = document.getElementById( "slider" + user );
+            let sliderValue = document.getElementById( "sliderString" + user );
+            
+            slider.value = progress;
+            updateSliderValue( slider, sliderValue ); 
         }
     }
+
+    if( sync == false ){
+         
+        // Get the sliders
+        let slider = document.getElementById( "slider" + user );
+        let sliderValue = document.getElementById( "sliderString" + user );
+        
+        slider.value = progress;
+        updateSliderValue( slider, sliderValue ); 
+    }
+
+
+
+
 });

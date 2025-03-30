@@ -156,7 +156,7 @@ body {
     flex-direction: column;
 }
 
-#slider-value {
+.slider-value {
     position: absolute;
     top: -32px; /* Adjusts text position above thumb */
     left: 50%;
