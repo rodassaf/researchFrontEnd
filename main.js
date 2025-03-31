@@ -387,9 +387,10 @@ function render() {
         mixer.update( dt );
         // Sync slider with animation
         if ( action && action.isRunning() ) {
-            let progress = ( action.time / currentClip.duration ) * 100;
-            slider.value = progress; // Update slider to match animation
-            socket.emit( 'timelineUserFollow', userName, progress, currentClip );
+            //let progress = ( action.time / currentClip.duration ) * 100;
+            let currentFrame = Math.round( action.time * frameRate );
+            slider.value = currentFrame; // Update slider to match animation
+            socket.emit( 'timelineUserFollow', userName, currentFrame, currentClip );
             updateFrameNumber();
         }
     }
@@ -477,6 +478,7 @@ function restart() {
         if( flags.isAnimationSync == true )
             socket.emit( 'restart', animationClipObject.clip, animationFolder.children[ 1 ].controller.value.rawValue );
         action.reset();
+        action.play();
     }
 }
 
@@ -498,11 +500,12 @@ slider.addEventListener( "input", ( event ) => {
         if( action.isRunning() !== true ) 
             action.play();
         action.paused = true;
-        let sliderValue = event.target.value / 100; // Normalize value
-        action.time = sliderValue * currentClip.duration;
-        mixer.update(0); // Apply the new time
+        const currentFrame = parseInt( event.target.value, 10 );
+        action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
+        mixer.update( 0 ); // Apply the new time
         updateFrameNumber();
         let progress = ( action.time / currentClip.duration ) * 100;
+        
         // Emit value
         //if( flags.isAnimationSync == true )
         socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
@@ -954,9 +957,11 @@ socket.on( 'updateXRCamera', function( msg ){
 socket.on( 'onClipChange', function( clip, sync, user ){
 
     // Update the UI
-    if( flags.isAnimationSync == true && sync == true )
-        animationFolder.children[ 0 ].controller.value.rawValue = clip;
-    
+    if( flags.isAnimationSync == true && sync == true ){
+        if( animationFolder.children[ 0 ].controller.value.rawValue != clip ) 
+            animationFolder.children[ 0 ].controller.value.rawValue = clip;
+    }
+
     // Check if it is the same clip running
     if( currentClip && clip == currentClip.name ) {
         document.getElementById( "slider" + user ).style.visibility = "visible";
@@ -979,7 +984,7 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     }
 
     // Consult who has the Same Clip or Not REVIEW THIS!!!!!!!!
-    socket.emit( 'askClip', clip, user );     
+    socket.emit( 'askClip', currentClip, userName );     
   
 }); 
 
@@ -1078,17 +1083,17 @@ socket.on( 'askSync', function( user, sync, progress ){
 
 // Update Sliders
 socket.on( 'askClip', function( clip, user ){
-    console.log(clip);
-
+console.log(clip.name)
     // Check if it is the same clip running
-    if( currentClip && clip == currentClip.name ) {
+    if( currentClip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + user ).style.visibility = "visible";
         document.getElementById( "sliderString" + user ).style.visibility = "visible";
         
         // Prepare the Timeline
         let userFollowSlider = document.getElementById( "slider" + user );
         userFollowSlider.max = Math.round( currentClip.duration * frameRate );
-        userFollowSlider.value = 1;
+        updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user ) ); 
+        //userFollowSlider.value = 1;
 
     } else {
         document.getElementById( "slider" + user ).style.visibility = "hidden";
@@ -1127,7 +1132,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             let slider = document.getElementById( "slider" + user );
             let sliderValue = document.getElementById( "sliderString" + user );
             
-            slider.value = progress;
+            let currentFrame = Math.round( action.time * frameRate );
+            slider.value = currentFrame; // Update slider to match animation
+
+           // slider.value = progress;
             updateSliderValue( slider, sliderValue ); 
         }
     }
