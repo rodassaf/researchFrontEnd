@@ -505,7 +505,7 @@ slider.addEventListener( "input", ( event ) => {
         let progress = ( action.time / currentClip.duration ) * 100;
         // Emit value
         //if( flags.isAnimationSync == true )
-        socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName );
+        socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
     }
 });
 
@@ -713,8 +713,8 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value !== "none" ){
                 // Emit change of the clip
-               // if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName );                        
+                // if( flags.isAnimationSync == true )
+                socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName );                        
                 // Prepare the action object to play a specific animation
                 let clip = THREE.AnimationClip.findByName( animations, ev.value );
                 // Save as a global variable
@@ -734,7 +734,7 @@ function createGUI( model, animations) {
             if( ev.target.label === "clip" && ev.value === "none" ){
                 // Emit change of the clip
               //  if( flags.isAnimationSync == true )
-                    socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName ); 
+                socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName ); 
                 if ( action )
                     action.stop();
                 action = null;
@@ -758,10 +758,6 @@ function createGUI( model, animations) {
                     action.stop();
                 }
             }
-            if( ev.target.label === "sync" && ev.value == false){
-                
-            }
-
         });
     }
 
@@ -965,6 +961,12 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     if( currentClip && clip == currentClip.name ) {
         document.getElementById( "slider" + user ).style.visibility = "visible";
         document.getElementById( "sliderString" + user ).style.visibility = "visible";
+        
+        // Prepare the Timeline
+        let userFollowSlider = document.getElementById( "slider" + user );
+        userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        userFollowSlider.value = 1;
+
     } else {
         document.getElementById( "slider" + user ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user ).style.visibility = "hidden";
@@ -975,6 +977,9 @@ socket.on( 'onClipChange', function( clip, sync, user ){
         document.getElementById( "slider" + user ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user ).style.visibility = "hidden";
     }
+
+    // Consult who has the Same Clip or Not REVIEW THIS!!!!!!!!
+    socket.emit( 'askClip', clip, user );     
   
 }); 
 
@@ -1013,6 +1018,7 @@ socket.on( 'play', function( clip, time, loop ){
 socket.on( 'timelineUserFollow', function( user, progress, clip ){
 
     if( currentClip && clip.name == currentClip.name ){
+     
         // Get the sliders
         let slider = document.getElementById( "slider" + user );
         let sliderValue = document.getElementById( "sliderString" + user );
@@ -1059,7 +1065,7 @@ socket.on( 'stop', function(){
 // Update the sliders
 socket.on( 'askSync', function( user, sync, progress ){
     if( flags.isAnimationSync == true && sync == true ){
-        console.log("HERE1")
+        
             // Get the sliders from others
             let slider = document.getElementById( "slider" + user );
             let sliderValue = document.getElementById( "sliderString" + user );
@@ -1068,27 +1074,45 @@ socket.on( 'askSync', function( user, sync, progress ){
             updateSliderValue( slider, sliderValue ); 
             return;
     }
-    console.log("HERE2")
-/*    if(  ){
-    console.log("HERE2")
-    
-        // Get the sliders from others
-        let slider = document.getElementById( "slider" + user );
-        let sliderValue = document.getElementById( "sliderString" + user );
+});
+
+// Update Sliders
+socket.on( 'askClip', function( clip, user ){
+    console.log(clip);
+
+    // Check if it is the same clip running
+    if( currentClip && clip == currentClip.name ) {
+        document.getElementById( "slider" + user ).style.visibility = "visible";
+        document.getElementById( "sliderString" + user ).style.visibility = "visible";
         
-        slider.value = progress;
-        updateSliderValue( slider, sliderValue ); 
-    
-} */
+        // Prepare the Timeline
+        let userFollowSlider = document.getElementById( "slider" + user );
+        userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        userFollowSlider.value = 1;
+
+    } else {
+        document.getElementById( "slider" + user ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+    }
+
+    // Make sure the slider is hidden when NONE is selected
+    if( clip.name == "none" ){
+        document.getElementById( "slider" + user ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+    }
 });
 
 // Grabbing timeline
-socket.on( 'grabbing', function( value, progress, sync, user ){
+socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     
     // ReTell everyone what is the current status
     socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
 
     if( flags.isAnimationSync == true && sync == true ){
+        
+        if( animationClipObject.clip != clip )
+            animationFolder.children[ 0 ].controller.value.rawValue = clip;
+
         if( action ) {
             if( action.isRunning() !== true ) 
                 action.play();
@@ -1109,7 +1133,6 @@ socket.on( 'grabbing', function( value, progress, sync, user ){
     }
 
     if( sync == false || sync== true ){
-        console.log("HALLO")
         // Get the sliders
         let slider = document.getElementById( "slider" + user );
         let sliderValue = document.getElementById( "sliderString" + user );
