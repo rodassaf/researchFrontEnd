@@ -504,8 +504,8 @@ slider.addEventListener( "input", ( event ) => {
         action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
         mixer.update( 0 ); // Apply the new time
         updateFrameNumber();
-        let progress = ( action.time / currentClip.duration ) * 100;
-        
+        //let progress = ( action.time / currentClip.duration ) * 100;
+        let progress = Math.round( action.time * frameRate );
         // Emit value
         //if( flags.isAnimationSync == true )
         socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
@@ -1020,7 +1020,7 @@ socket.on( 'play', function( clip, time, loop ){
 }); 
 
 // Play animation of a follow user
-socket.on( 'timelineUserFollow', function( user, progress, clip ){
+socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
 
     if( currentClip && clip.name == currentClip.name ){
      
@@ -1029,7 +1029,7 @@ socket.on( 'timelineUserFollow', function( user, progress, clip ){
         let sliderValue = document.getElementById( "sliderString" + user );
        
         // Initialize position
-        slider.value = progress;
+        slider.value = currentFrame;
         updateSliderValue( slider, sliderValue ); 
     }
 }); 
@@ -1083,9 +1083,9 @@ socket.on( 'askSync', function( user, sync, progress ){
 
 // Update Sliders
 socket.on( 'askClip', function( clip, user ){
-console.log(clip.name)
+
     // Check if it is the same clip running
-    if( currentClip && clip.name == currentClip.name ) {
+    if( currentClip && clip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + user ).style.visibility = "visible";
         document.getElementById( "sliderString" + user ).style.visibility = "visible";
         
@@ -1101,7 +1101,7 @@ console.log(clip.name)
     }
 
     // Make sure the slider is hidden when NONE is selected
-    if( clip.name == "none" ){
+    if( !clip || clip.name == "none" ){
         document.getElementById( "slider" + user ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user ).style.visibility = "hidden";
     }
