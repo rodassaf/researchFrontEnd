@@ -376,6 +376,10 @@ function rotateFaceAvatar( pos, quat ){
     );
 }
 
+function getRandomHexColor() {
+    return '#' + Math.floor( Math.random() * 16777215 ).toString( 16 );
+}
+
 function animate() {
     //requestAnimationFrame( animate );
     renderer.setAnimationLoop( render );
@@ -835,6 +839,7 @@ socket.on( 'userConnected', function( msg ) {
 
          // Create Timeline Sliders and its attributes
         let slider = document.createElement( 'input' );
+        slider.style.setProperty( '--thumb-color', getRandomHexColor() );
         slider.type = 'range';
         slider.min = '1';
         slider.max = '100';
@@ -891,6 +896,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             if( document.getElementById( "slider" + msg[ k ] ) == null ){
                 // Create Timeline Sliders and its attributes
                 let slider = document.createElement( 'input' );
+                slider.style.setProperty( '--thumb-color', getRandomHexColor() );
                 slider.type = 'range';
                 slider.min = '1';
                 slider.max = '100';
@@ -931,6 +937,11 @@ socket.on( 'userDisconnected', function( msg ) {
     // Find the 'name' blade and remove it
     let bladeDisposal = findBladeByLabel( userFolder, msg );
     bladeDisposal.dispose();
+
+    let slider = document.getElementById( "slider" + msg );
+    let sliderValue = document.getElementById( "sliderString" + msg );
+    slider.remove();
+    sliderValue.remove();
 });
 
 // On non XR camera change

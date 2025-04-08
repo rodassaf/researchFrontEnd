@@ -125,14 +125,14 @@ body {
     width: 15px;
     height: 15px;
     border-radius: 15px;
-    background: #076145;
+    background: var(--thumb-color, #076145);
     cursor: pointer;
 }
   
 .sliderConnected::-moz-range-thumb {
     width: 25px;
     height: 25px;
-    background: #04AA6D;
+    background: var(--thumb-color, #076145);
     cursor: pointer;
 }
 
@@ -142,7 +142,7 @@ body {
     height: 15px;
     border-radius: 15px;
     outline: 3px solid rgb(33, 33, 33);
-    background: #076145;
+    background: var(--thumb-color, #076145);
     cursor: pointer;
 }
 
