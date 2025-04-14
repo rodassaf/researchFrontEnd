@@ -13,6 +13,7 @@ import LeftAxisWatcher from "./LeftAxisWatcher";
 import { userData } from "three/tsl";
 
 var userName = prompt( "Please enter your name" );
+userName = userName.toString();
 
 // Create a socket
 var socket = io( "http://localhost:3000" , {
@@ -44,7 +45,7 @@ var flags = {
 var interactiveGroup;
 
 // Slider of Timeline
-var slider;
+var slider, sliderName;
 
 // Controllers
 var geometry, controller1, controller2;
@@ -378,7 +379,7 @@ function rotateFaceAvatar( pos, quat ){
 }
 
 function getRandomHexColor() {
-    return '#' + Math.floor( Math.random() * 16777215 ).toString( 16 );
+    return '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
 }
 
 function animate() {
@@ -397,6 +398,8 @@ function render() {
             slider.value = currentFrame; // Update slider to match animation
             socket.emit( 'timelineUserFollow', userName, currentFrame, currentClip );
             updateFrameNumber();
+            // Update my slider name (me)
+            updateSliderValue( slider, sliderName );
         }
     }
 
@@ -496,8 +499,10 @@ function stop() {
     }
 }
 
-// Get Slider
+// Get Slider and name
 slider = document.getElementById( "myTimeline" );
+sliderName = document.getElementById( "sliderString" );
+updateSliderValue( slider, sliderName );
 
 // Grabbing Timeline
 slider.addEventListener( "input", ( event ) => {
@@ -509,11 +514,16 @@ slider.addEventListener( "input", ( event ) => {
         action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
         mixer.update( 0 ); // Apply the new time
         updateFrameNumber();
+        updateSliderValue( slider, sliderName );
         //let progress = ( action.time / currentClip.duration ) * 100;
         let progress = Math.round( action.time * frameRate );
         // Emit value
-        //if( flags.isAnimationSync == true )
         socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
+
+        // Update Synced ones
+
+    } else {
+        updateSliderValue( slider, sliderName );
     }
 });
 
@@ -764,12 +774,13 @@ function createGUI( model, animations) {
                 if ( action ) {
                     action.paused = true;
                 }
-                
+
                 socket.emit( 'addSyncUser', userName, currentClip ); 
 
                 if ( arrayUsers.length > 0 && flags.isAnimationSync ){
                     for( const user of arrayUsers ){
-                        document.getElementById( "slider" + user ).style.visibility = "hidden";
+                        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+                        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
                     }
                 }
             }
@@ -785,6 +796,19 @@ function createGUI( model, animations) {
                 if ( arrayUsers.length > 0 ){
                     // Get at least one representant of the synced users
                     document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
+                    document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
+                    // Make sure that the value is the same When we turn off Sync
+                    document.getElementById( "slider" + arrayUsers[0].toString() ).value = slider.value;
+                    updateSliderValue( document.getElementById( "slider" + arrayUsers[0].toString() ), document.getElementById( "sliderString" + arrayUsers[0].toString() ) ); 
+                    // Hide the rest
+                    if( arrayUsers.length > 1) {
+                        for(let i = 1; i<arrayUsers.length; i++){
+                             // Hide
+                            document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                            document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                        }
+                    }
+
                 }
             }
         });
@@ -916,7 +940,7 @@ socket.once( 'checkWhosOnline', function( msg ){
 
             arrayUsers.push( msg[ k ] );
 
-            if( document.getElementById( "slider" + msg[ k ] ) == null ){
+            if( document.getElementById( "slider" + msg[ k ].toString() ) == null ){
                 // Create Timeline Sliders and its attributes
                 let slider = document.createElement( 'input' );
                 slider.style.setProperty( '--thumb-color', getRandomHexColor() );
@@ -967,8 +991,8 @@ socket.on( 'userDisconnected', function( msg ) {
     let bladeDisposal = findBladeByLabel( userFolder, msg );
     bladeDisposal.dispose();
 
-    let slider = document.getElementById( "slider" + msg );
-    let sliderValue = document.getElementById( "sliderString" + msg );
+    let slider = document.getElementById( "slider" + msg.toString() );
+    let sliderValue = document.getElementById( "sliderString" + msg.toString() );
     slider.remove();
     sliderValue.remove();
 });
@@ -1005,26 +1029,29 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     // Check if it is the same clip running
     if( currentClip && clip == currentClip.name ) {
 
-        if( flags.isAnimationSync == true && sync == true)
-            document.getElementById( "slider" + user ).style.visibility = "hidden";
-        else
-            document.getElementById( "slider" + user ).style.visibility = "visible";
+        if( flags.isAnimationSync == true && sync == true){
+            document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+            document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+        }
+        else{
+            document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
+            document.getElementById( "sliderString" + user ).style.visibility = "visible";
+        }
 
-        document.getElementById( "sliderString" + user ).style.visibility = "visible";
         // Prepare the Timeline
-        let userFollowSlider = document.getElementById( "slider" + user );
+        let userFollowSlider = document.getElementById( "slider" + user.toString() );
         userFollowSlider.max = Math.round( currentClip.duration * frameRate );
         userFollowSlider.value = 1;
 
     } else {
-        document.getElementById( "slider" + user ).style.visibility = "hidden";
-        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
     }
 
     // Make sure the slider is hidden when NONE is selected
     if( clip.name == "none" ){
-        document.getElementById( "slider" + user ).style.visibility = "hidden";
-        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
     }
 
     // Consult who has the Same Clip or Not REVIEW THIS!!!!!!!!
@@ -1069,8 +1096,8 @@ socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
     if( currentClip && clip.name == currentClip.name ){
      
         // Get the sliders
-        let slider = document.getElementById( "slider" + user );
-        let sliderValue = document.getElementById( "sliderString" + user );
+        let slider = document.getElementById( "slider" + user.toString() );
+        let sliderValue = document.getElementById( "sliderString" + user.toString() );
        
         // Initialize position
         slider.value = currentFrame;
@@ -1116,8 +1143,8 @@ socket.on( 'askSync', function( user, sync, progress ){
     if( flags.isAnimationSync == true && sync == true ){
         
             // Get the sliders from others
-            let slider = document.getElementById( "slider" + user );
-            let sliderValue = document.getElementById( "sliderString" + user );
+            let slider = document.getElementById( "slider" + user.toString() );
+            let sliderValue = document.getElementById( "sliderString" + user.toString() );
             
             slider.value = progress;
             updateSliderValue( slider, sliderValue ); 
@@ -1130,29 +1157,31 @@ socket.on( 'askClip', function( clip, user, sync ){
 
     // Check if it is the same clip running
     if( currentClip && clip && clip.name == currentClip.name ) {
-        if( flags.isAnimationSync == true && sync == true)
-            document.getElementById( "slider" + user ).style.visibility = "hidden";
-        else
-            document.getElementById( "slider" + user ).style.visibility = "visible";
+        if( flags.isAnimationSync == true && sync == true){
+            document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+            document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        }
+        else{
+            document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
+            document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
+        }
 
-
-        document.getElementById( "sliderString" + user ).style.visibility = "visible";
         
         // Prepare the Timeline
-        let userFollowSlider = document.getElementById( "slider" + user );
+        let userFollowSlider = document.getElementById( "slider" + user.toString() );
         userFollowSlider.max = Math.round( currentClip.duration * frameRate );
-        updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user ) ); 
+        updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user.toString() ) ); 
         //userFollowSlider.value = 1;
 
     } else {
-        document.getElementById( "slider" + user ).style.visibility = "hidden";
-        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
     }
 
     // Make sure the slider is hidden when NONE is selected
     if( !clip || clip.name == "none" ){
-        document.getElementById( "slider" + user ).style.visibility = "hidden";
-        document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
     }
 });
 
@@ -1161,8 +1190,17 @@ socket.on( 'addSyncUser', function( user, clip ){
 
     if( currentClip && clip && clip.name == currentClip.name ) {
         arrayUsers.push( user );
-        if( flags.isAnimationSync )
-            document.getElementById( "slider" + user ).style.visibility = "hidden";
+        if( flags.isAnimationSync ) {
+            document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+            document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        } else {
+            if( arrayUsers.length > 1 ) {
+                for( let i = 0; i < arrayUsers.length-1; i++ ){
+                    document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                    document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                }
+            }
+        }
     }
 });
 
@@ -1173,18 +1211,31 @@ socket.on( 'removeSyncUser', function( user, clip ){
     if( index !== -1 ) 
         arrayUsers.splice( index, 1 );
     
-    if( currentClip && clip && clip.name == currentClip.name ) 
-        document.getElementById( "slider" + user ).style.visibility = "visible";
-    else
-        document.getElementById( "slider" + user ).style.visibility = "hidden";
-    
+    if( currentClip && clip && clip.name == currentClip.name ) {
+        document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
+    }
+    else{
+        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+    }
+
+    if( arrayUsers.length > 1) {
+        for(let i = 1; i<arrayUsers.length; i++){
+             // Hide
+            document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
+            document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+        }
+    }
+
+
 });
 
 // Grabbing timeline
 socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     
     // ReTell everyone what is the current status
-    socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
+    //socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
 
     if( flags.isAnimationSync == true && sync == true ){
         
@@ -1198,30 +1249,39 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             action.time = value;
             mixer.update( 0 ); // Apply the new time
             
-
             // Update the current slider
             document.getElementById( "myTimeline" ).value = progress; // Update slider to match animation
-            // Get the sliders from others
-            let slider = document.getElementById( "slider" + user );
-            let sliderValue = document.getElementById( "sliderString" + user );
-            
-            let currentFrame = Math.round( action.time * frameRate );
-            slider.value = currentFrame; // Update slider to match animation
-
-           // slider.value = progress;
-            updateSliderValue( slider, sliderValue ); 
+                          
+            // Update local slider name (me) 
+            updateSliderValue( slider, sliderName );
             updateFrameNumber();
         }
     }
 
-    if( sync == false || sync== true ){
-        // Get the sliders
-        let slider = document.getElementById( "slider" + user );
-        let sliderValue = document.getElementById( "sliderString" + user );
-        
-        slider.value = progress;
-        updateSliderValue( slider, sliderValue ); 
+    if( currentClip && clip && clip == currentClip.name ){
+         // Get the sliders from others
+         let sliderTemp = document.getElementById( "slider" + user.toString() );
+         let sliderValueTemp = document.getElementById( "sliderString" + user.toString() );
+         
+         sliderTemp.value = progress; // Update slider to match animation
+         updateSliderValue( sliderTemp, sliderValueTemp );
+
+        if( arrayUsers.length > 1 ){
+            for( let i=0; i<arrayUsers.length; i++ ){
+                console.log(arrayUsers[i])
+                // Get the sliders from others
+                let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
+                let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
+                
+                sliderTemp.value = progress; // Update slider to match animation
+                updateSliderValue( sliderTemp, sliderValueTemp );
+            }
+        }
     }
+
+    
+
+    
 
 
 
