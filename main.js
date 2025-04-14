@@ -520,6 +520,18 @@ slider.addEventListener( "input", ( event ) => {
         // Emit value
         socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
 
+        if( arrayUsers.length > 0 && flags.isAnimationSync ){
+            for( let i=0; i<arrayUsers.length; i++ ){
+                
+                // Get the sliders from others
+                let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
+                let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
+                
+                sliderTemp.value = progress; // Update slider to match animation
+                updateSliderValue( sliderTemp, sliderValueTemp );
+            }
+        }
+
         // Update Synced ones
 
     } else {
@@ -1247,7 +1259,6 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     //socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
 
     if( flags.isAnimationSync == true && sync == true ){
-        
         if( animationClipObject.clip != clip )
             animationFolder.children[ 0 ].controller.value.rawValue = clip;
 
@@ -1264,6 +1275,18 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             // Update local slider name (me) 
             updateSliderValue( slider, sliderName );
             updateFrameNumber();
+
+            // Update all synced
+            if( arrayUsers.length > 0 ){
+                for( let i=0; i<arrayUsers.length; i++ ){
+                    // Get the sliders from others
+                    let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
+                    let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
+                    
+                    sliderTemp.value = progress; // Update slider to match animation
+                    updateSliderValue( sliderTemp, sliderValueTemp );
+                }
+            }
         }
     }
 
