@@ -1210,22 +1210,31 @@ socket.on( 'removeSyncUser', function( user, clip ){
     const index = arrayUsers.indexOf( user );
     if( index !== -1 ) 
         arrayUsers.splice( index, 1 );
-    
+
     if( currentClip && clip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
+       // document.getElementById( "slider" + user.toString() ).value = slider.value;
+       // updateSliderValue( document.getElementById( "slider" + user.toString() ), document.getElementById( "sliderString" + user.toString() ) ); 
+
     }
     else{
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
     }
 
-    if( arrayUsers.length > 1) {
+    if( arrayUsers.length > 1 && arrayUsers.length != 1) {
         for(let i = 1; i<arrayUsers.length; i++){
              // Hide
             document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
         }
+    }
+    console.log(arrayUsers)
+    if( arrayUsers.length == 1 && !flags.isAnimationSync ) {
+        console.log("ENTROU")
+        document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
+        document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
     }
 
 
@@ -1268,7 +1277,7 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
 
         if( arrayUsers.length > 1 ){
             for( let i=0; i<arrayUsers.length; i++ ){
-                console.log(arrayUsers[i])
+                
                 // Get the sliders from others
                 let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
                 let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
