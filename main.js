@@ -759,6 +759,7 @@ function createGUI( model, animations) {
                 slider.max = Math.round( clip.duration * frameRate );
                 slider.value = 1;
                 updateFrameNumber();
+                updateSliderValue( slider, sliderName );
             }
 
             if( ev.target.label === "clip" && ev.value === "none" ){
@@ -1054,6 +1055,7 @@ socket.on( 'onClipChange', function( clip, sync, user ){
         let userFollowSlider = document.getElementById( "slider" + user.toString() );
         userFollowSlider.max = Math.round( currentClip.duration * frameRate );
         userFollowSlider.value = 1;
+        updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user.toString() ) )
 
     } else {
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
@@ -1169,14 +1171,19 @@ socket.on( 'askClip', function( clip, user, sync ){
 
     // Check if it is the same clip running
     if( currentClip && clip && clip.name == currentClip.name ) {
-        if( flags.isAnimationSync == true && sync == true){
+        if( flags.isAnimationSync == true && sync == true && arrayUsers.length > 0){
+            console.log("AQUI1")
+            console.log(user)
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
         }
         else{
+            console.log("AQUI2")
+            console.log(user)
             document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
         }
+
 
         
         // Prepare the Timeline
@@ -1242,9 +1249,8 @@ socket.on( 'removeSyncUser', function( user, clip ){
             document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
         }
     }
-    console.log(arrayUsers)
-    if( arrayUsers.length == 1 && !flags.isAnimationSync ) {
-        console.log("ENTROU")
+
+    if( arrayUsers.length == 1 && !flags.isAnimationSync && currentClip && clip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
     }
