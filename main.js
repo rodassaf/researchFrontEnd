@@ -796,6 +796,10 @@ function createGUI( model, animations) {
                         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
                     }
                 }
+
+                 // Print the names on the slider
+                document.getElementById( "sliderString" ).innerHTML = arrayUsers.join('<br>');
+
             }
 
             if( ev.target.label === "sync" && ev.value == false){
@@ -804,6 +808,10 @@ function createGUI( model, animations) {
                 }
 
                 socket.emit( 'removeSyncUser', userName, currentClip );
+
+                 // Print me on the slider
+                document.getElementById( "sliderString" ).innerHTML = "me";
+
 
                 // Leave one slider Thumb of the synced ones
                 if ( arrayUsers.length > 0 ){
@@ -916,6 +924,8 @@ socket.on( 'userConnected', function( msg ) {
         document.querySelector('.sliderContainer4Connected').appendChild(sliderString);
 
         arrayUsers.push( msg );
+        // Print the names on the slider
+        document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
     }
 });
 
@@ -952,6 +962,8 @@ socket.once( 'checkWhosOnline', function( msg ){
             });
 
             arrayUsers.push( msg[ k ] );
+            // Print the names on the slider
+            document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
 
             if( document.getElementById( "slider" + msg[ k ].toString() ) == null ){
                 // Create Timeline Sliders and its attributes
