@@ -798,7 +798,7 @@ function createGUI( model, animations) {
                 }
 
                  // Print the names on the slider
-                document.getElementById( "sliderString" ).innerHTML = arrayUsers.join('<br>');
+                document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, "me"].join('<br>');
 
             }
 
@@ -1184,14 +1184,10 @@ socket.on( 'askClip', function( clip, user, sync ){
     // Check if it is the same clip running
     if( currentClip && clip && clip.name == currentClip.name ) {
         if( flags.isAnimationSync == true && sync == true && arrayUsers.length > 0){
-            console.log("AQUI1")
-            console.log(user)
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
         }
         else{
-            console.log("AQUI2")
-            console.log(user)
             document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
         }
