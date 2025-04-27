@@ -799,7 +799,7 @@ function createGUI( model, animations) {
 
                  // Print the names on the slider
                 document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, "me"].join('<br>');
-
+            
             }
 
             if( ev.target.label === "sync" && ev.value == false){
@@ -818,6 +818,8 @@ function createGUI( model, animations) {
                     // Get at least one representant of the synced users
                     document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
                     document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
+                     // Print the names on the slider
+                    document.getElementById( "sliderString" + arrayUsers[0].toString() ).innerHTML = [...arrayUsers].join('<br>');
                     // Make sure that the value is the same When we turn off Sync
                     document.getElementById( "slider" + arrayUsers[0].toString() ).value = slider.value;
                     updateSliderValue( document.getElementById( "slider" + arrayUsers[0].toString() ), document.getElementById( "sliderString" + arrayUsers[0].toString() ) ); 
@@ -829,7 +831,6 @@ function createGUI( model, animations) {
                             document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
                         }
                     }
-
                 }
             }
         });
@@ -1020,6 +1021,10 @@ socket.on( 'userDisconnected', function( msg ) {
     let sliderValue = document.getElementById( "sliderString" + msg.toString() );
     slider.remove();
     sliderValue.remove();
+
+    if( flags.isAnimationSync )
+        // Print the names on the slider
+        document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
 });
 
 // On non XR camera change
@@ -1217,14 +1222,20 @@ socket.on( 'addSyncUser', function( user, clip ){
 
     if( currentClip && clip && clip.name == currentClip.name ) {
         arrayUsers.push( user );
+        console.log(arrayUsers)
+
         if( flags.isAnimationSync ) {
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+            // Print the names on the slider
+            document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
         } else {
             if( arrayUsers.length > 1 ) {
+                document.getElementById( "sliderString" + arrayUsers[ arrayUsers.length-1 ].toString() ).innerHTML = [ ...arrayUsers ].join( '<br>' );
                 for( let i = 0; i < arrayUsers.length-1; i++ ){
-                    document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
-                    document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                    console.log(arrayUsers[ i ])
+                    document.getElementById( "slider" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
+                    document.getElementById( "sliderString" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
                 }
             }
         }
@@ -1241,6 +1252,7 @@ socket.on( 'removeSyncUser', function( user, clip ){
     if( currentClip && clip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
+        document.getElementById( "sliderString" + user.toString() ).innerHTML = user.toString();
        // document.getElementById( "slider" + user.toString() ).value = slider.value;
        // updateSliderValue( document.getElementById( "slider" + user.toString() ), document.getElementById( "sliderString" + user.toString() ) ); 
 
@@ -1259,9 +1271,14 @@ socket.on( 'removeSyncUser', function( user, clip ){
     }
 
     if( arrayUsers.length == 1 && !flags.isAnimationSync && currentClip && clip && clip.name == currentClip.name ) {
-        document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
-        document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
+        document.getElementById( "slider" + arrayUsers[ 0 ].toString() ).style.visibility = "visible";
+        document.getElementById( "sliderString" + arrayUsers[ 0 ].toString() ).style.visibility = "visible";
     }
+
+    if( flags.isAnimationSync )
+        // Print the names on the slider
+        document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
+
 
 
 });
