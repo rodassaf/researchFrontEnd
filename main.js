@@ -95,6 +95,9 @@ var arrayUsers = [];
 // Variable to receive the List Blade
 var listFollowUsers;
 
+// XR Handle
+var handle;
+
 // Create the Follow Dropdown menu and attribute a variable to get the list
 listFollowUsers = followFolder.addBlade({
     view: 'list',
@@ -189,14 +192,26 @@ function startXR( event ) {
     controller2.add( new THREE.Line( geometry ) );
     scene.add( controller2 );
 
+    // When the controller is connected we can store 3 properties into a custom object named userData (which is attached to any object in threejs)
+    controller1.addEventListener( 'connected', ( event ) => {
+        controller1.userData.inputSource = event.data;
+        controller1.userData.gamepad = event.data.gamepad;
+        controller1.userData.buttons = new Array( event.data.gamepad.buttons.length ).fill( false );
+    });
+
+    controller1.addEventListener( 'disconnected', () => {
+        delete controller1.userData.inputSource;
+        delete controller1.userData.gamepad;
+    });
+
     // Controller Events
-    controller1.addEventListener('selectstart', () => {
+/*     controller1.addEventListener('selectstart', () => {
         console.log('Select pressed');
     });
 
     controller1.addEventListener('squeezestart', () => {
         console.log('Squeeze pressed');
-    });
+    }); */
 
     rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
     leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
@@ -230,6 +245,9 @@ function startXR( event ) {
             gltf.scene.rotation.y = - Math.PI / 2;
             gltf.scene.position.y = 0.04;
             controller1.add( gltf.scene );
+
+            // Find and get the mesh Handle by name
+            handle = scene.getObjectByName('handle');
         },
         // called while loading is progressing
         function ( xhr ) {
@@ -389,6 +407,10 @@ function animate() {
 
 function render() {
     let dt = clock.getDelta();
+
+    //Is there a XR Session?
+    const session = renderer.xr.getSession();
+
     if ( mixer ) {
         mixer.update( dt );
         // Sync slider with animation
@@ -398,8 +420,13 @@ function render() {
             slider.value = currentFrame; // Update slider to match animation
             socket.emit( 'timelineUserFollow', userName, currentFrame, currentClip );
             updateFrameNumber();
-            // Update my slider name (me)
+            // Update my slider user name (me)
             updateSliderValue( slider, sliderName );
+
+            if (session) {
+                handle.morphTargetInfluences[ 0 ] = currentFrame/100;
+            }
+
         }
     }
 
@@ -409,14 +436,36 @@ function render() {
     // Emit camera position to others who want to follow me
     socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
 
-    // Get Joystick Events on X axis from a XR Session only
-    const session = renderer.xr.getSession();
-    // XR Session
+    // XR Session to get controllers buttons
     if ( session ) {
 
+        // Sync Avatar head with VR Headset
         trackVRHeadset();
 
-        for ( const source of session.inputSources ) {
+        if ( controller1.userData && controller1.userData.inputSource ) {
+
+            const gamepad = controller1.userData.gamepad;
+
+            gamepad.buttons.forEach( ( button, index ) => {
+                
+                const previouslyPressed = controller1.userData.buttons[ index ];
+               
+                // Check if the button is on hold
+                if ( button.pressed && previouslyPressed )
+                        console.log("HOLD " + `${index}` )
+
+                // Check which button is pressedf
+                if ( button.pressed && !previouslyPressed ) {
+                    console.log( `Button ${index} just pressed` );
+                    controller1.userData.buttons[ index ] = true;
+                } else if (!button.pressed && previouslyPressed) { // Release button
+                controller1.userData.buttons[ index ] = false;
+                }
+            });
+            
+        } 
+  
+/*         for ( const source of session.inputSources ) {
             if ( source.gamepad ) {
                 const axes = source.gamepad.axes;  
 
@@ -427,7 +476,7 @@ function render() {
                     if(source.handedness == "right" )
                         rightAxisWatcher.value = axes[ 2 ]; 
                 }
-                   
+                
                 // Left Axis
                 if( axes[ 2 ] === 0 && axes[2] === leftAxisWatcher.value && source.handedness == "left" )
                     continue;
@@ -436,7 +485,7 @@ function render() {
                         leftAxisWatcher.value = axes[ 2 ];
                 }
             }
-        }
+        } */
     }
     
 }
