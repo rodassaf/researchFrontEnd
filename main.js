@@ -233,7 +233,6 @@ function startXR( event ) {
     interactiveGroup.listenToXRControllerEvents( controller2 );
     scene.add( interactiveGroup );
 
-
     // Create Timeline UI
     // Load a glTF resource
     loader.load(
@@ -422,8 +421,8 @@ function render() {
             updateFrameNumber();
             // Update my slider user name (me)
             updateSliderValue( slider, sliderName );
-
-            if (session) {
+            // Update slider from XR session
+            if ( session ) {
                 handle.morphTargetInfluences[ 0 ] = currentFrame/100;
             }
 
@@ -451,8 +450,8 @@ function render() {
                 const previouslyPressed = controller1.userData.buttons[ index ];
                
                 // Check if the button is on hold
-                if ( button.pressed && previouslyPressed )
-                        console.log("HOLD " + `${index}` )
+                /* if ( button.pressed && previouslyPressed )
+                        console.log("HOLD " + `${index}` ) */
 
                 // Check which button is pressedf
                 if ( button.pressed && !previouslyPressed ) {
