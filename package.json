@@ -13,12 +13,8 @@
   },
   "dependencies": {
     "socket.io-client": "^4.8.0",
-<<<<<<< HEAD
     "three": "^0.173.0",
     "three-mesh-ui": "^6.5.4",
-=======
-    "three": "^0.176.0",
->>>>>>> 0b0d322da673102a9837df8245ee18f002752588
     "tweakpane": "^4.0.4"
   }
 }
