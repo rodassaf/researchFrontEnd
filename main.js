@@ -4,7 +4,7 @@ import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Pane } from 'tweakpane';
-
+import ThreeMeshUI from 'three-mesh-ui'; 
 import { InteractiveGroup } from 'three/addons/interactive/InteractiveGroup.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 
@@ -95,8 +95,17 @@ var arrayUsers = [];
 // Variable to receive the List Blade
 var listFollowUsers;
 
-// XR Handle
+// XR Handle (the timeline handle)
 var handle;
+
+// XR Variable to indicate if the user is selecting a state
+var selectState = false;
+
+//XR Array to hold XR buttons to test
+var objsToTest = [];
+
+// Raycaster 
+var raycaster;
 
 // Create the Follow Dropdown menu and attribute a variable to get the list
 listFollowUsers = followFolder.addBlade({
@@ -132,6 +141,9 @@ function init() {
 
     // Create a clock
     clock = new THREE.Clock();
+
+    // Create a raycaster
+    raycaster = new THREE.Raycaster();
 
     // Flag to know if a VR session has started
     // console.log(renderer.xr.isPresenting);
@@ -204,14 +216,14 @@ function startXR( event ) {
         delete controller1.userData.gamepad;
     });
 
-    // Controller Events
-/*     controller1.addEventListener('selectstart', () => {
-        console.log('Select pressed');
+    // Basic Controller Events
+    controller1.addEventListener('selectstart', () => {
+        selectState = true;
     });
 
-    controller1.addEventListener('squeezestart', () => {
-        console.log('Squeeze pressed');
-    }); */
+    controller1.addEventListener('selectend', () => {
+        selectState = false;
+    }); 
 
     rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
     leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
@@ -233,7 +245,295 @@ function startXR( event ) {
     interactiveGroup.listenToXRControllerEvents( controller2 );
     scene.add( interactiveGroup );
 
+    // ************** three-mesh-ui panel setup ********************************
+    // Remove any previous panel if needed
+    if ( scene.getObjectByName( 'xrUIPanel' ) ) {
+        scene.remove( scene.getObjectByName( 'xrUIPanel' ) );
+    }
 
+    // Create the main panel
+     const panel = new ThreeMeshUI.Block({
+        width: 1.2,
+        height: 1.9,
+        padding: 0.05,
+        fontSize: 0.045,
+        justifyContent: 'start',
+        textAlign: 'center',
+        backgroundColor: new THREE.Color( 0x222233 ),
+        backgroundOpacity: 0.8,
+        borderRadius: 0.10,
+        fontFamily: './assets/Roboto-msdf.json', // adjust path as needed
+        fontTexture: './assets/Roboto-msdf.png'
+    });
+    panel.name = 'xrUIPanel';
+    panel.position.set( 0, 1.5, -1.5 );
+    
+    scene.add( panel );
+
+    // Helper to create a label row
+    function addLabelRow( text ) {
+        const row = new ThreeMeshUI.Block({ width: 1.1, height: 0.08, margin: 0.01, padding: 0.01, backgroundOpacity: 1, borderRadius: 0.03, backgroundColor: new THREE.Color(0x777777) });
+        row.add( new ThreeMeshUI.Text({ content: text }) );
+        panel.add( row );
+        return row;
+    }
+
+    // Buttons Configuration
+	const buttonOptions = {
+		width: 0.2,
+		height: 0.1,
+		justifyContent: 'center',
+		offset: 0.05,
+		margin: 0.02,
+		borderRadius: 0.055
+	};
+
+	const hoveredStateAttributes = {
+		state: 'hovered',
+		attributes: {
+			offset: 0.035,
+			backgroundColor: new THREE.Color( 0x999999 ),
+			backgroundOpacity: 1,
+			fontColor: new THREE.Color( 0xffffff )
+		},
+	};
+
+	const idleStateAttributes = {
+		state: 'idle',
+		attributes: {
+			offset: 0.035,
+			backgroundColor: new THREE.Color( 0x666666 ),
+			backgroundOpacity: 0.8,
+			fontColor: new THREE.Color( 0xffffff )
+		},
+	};
+
+    const selectedAttributes = {
+		offset: 0.02,
+		backgroundColor: new THREE.Color( 0x777777 ),
+		fontColor: new THREE.Color( 0x222222 )
+	};
+
+    // Online Users
+    addLabelRow( 'Online Users:' );
+    const onlineUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, backgroundOpacity: 0 });
+    const onlineUsersText = new ThreeMeshUI.Text({ content: "None" });  
+    onlineUsersPanel.add( onlineUsersText );
+    panel.add( onlineUsersPanel );
+    
+    // Follow User Dropdown
+    addLabelRow( 'Follow User:' );
+    const followUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const followUsersTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const followUsersText = new ThreeMeshUI.Text({ content: 'None' });
+    followUsersTextPanel.add( followUsersText );
+    const buttonSelectFollowUser = new ThreeMeshUI.Block( buttonOptions );
+    buttonSelectFollowUser.add( new ThreeMeshUI.Text( { content: 'next' } ));
+    const buttonApplyFollowUser = new ThreeMeshUI.Block( buttonOptions );
+    buttonApplyFollowUser.add( new ThreeMeshUI.Text( { content: 'apply' } ));
+
+	buttonSelectFollowUser.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonSelectFollowUser.setupState( hoveredStateAttributes );
+	buttonSelectFollowUser.setupState( idleStateAttributes );
+
+    buttonApplyFollowUser.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Apply Follow User' );
+
+		}
+	});
+
+	buttonApplyFollowUser.setupState( hoveredStateAttributes );
+	buttonApplyFollowUser.setupState( idleStateAttributes );
+
+    followUsersPanel.add( followUsersTextPanel, buttonSelectFollowUser, buttonApplyFollowUser );
+    panel.add( followUsersPanel )
+    objsToTest.push( buttonSelectFollowUser, buttonApplyFollowUser );
+
+    // Double check this
+    /*     buttonSelectFollowUser.on( 'click', () => {
+        // Get the next user in the list
+        const currentIndex = listFollowUsers.options.findIndex( option => option.value === followUser );
+        const nextIndex = (currentIndex + 1) % listFollowUsers.options.length;
+        followUser = listFollowUsers.options[nextIndex].value;
+        followUsersText.set({ content: followUser });
+    }); */
+
+    // Morph Targets Dropdown
+    addLabelRow( 'Morph Object:' );
+    const morphPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const morphCurrentTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const morphCurrentText = new ThreeMeshUI.Text({ content: 'None' });
+    const morphTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const morphText = new ThreeMeshUI.Text({ content: 'None' });
+    morphTextPanel.add( morphText );
+    morphCurrentTextPanel.add( morphCurrentText );
+    const buttonSelectMorph = new ThreeMeshUI.Block( buttonOptions );
+    buttonSelectMorph.add( new ThreeMeshUI.Text( { content: 'next' } ));
+    const buttonApplyMorph = new ThreeMeshUI.Block( buttonOptions );
+    buttonApplyMorph.add( new ThreeMeshUI.Text( { content: 'apply' } ));
+
+	buttonSelectFollowUser.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonSelectMorph.setupState( hoveredStateAttributes );
+	buttonSelectMorph.setupState( idleStateAttributes );
+
+    buttonApplyMorph.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Apply Follow User' );
+
+		}
+	});
+
+	buttonApplyMorph.setupState( hoveredStateAttributes );
+	buttonApplyMorph.setupState( idleStateAttributes );
+
+    morphPanel.add( morphTextPanel, buttonSelectMorph, buttonApplyMorph );
+    panel.add( morphCurrentTextPanel, morphPanel )
+    objsToTest.push( buttonSelectMorph, buttonApplyMorph );
+
+    // Morph Sync Checkbox
+    const morphCheckPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const morphCheckTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const morphCheckText = new ThreeMeshUI.Text({ content: 'Sync: ON' });
+    morphCheckTextPanel.add( morphCheckText );
+    const buttonMorphSync = new ThreeMeshUI.Block( buttonOptions );
+    buttonMorphSync.add( new ThreeMeshUI.Text( { content: 'on/off' } ));
+
+	buttonMorphSync.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonMorphSync.setupState( hoveredStateAttributes );
+	buttonMorphSync.setupState( idleStateAttributes );
+
+    morphCheckPanel.add( morphCheckTextPanel, buttonMorphSync );
+    panel.add( morphCheckPanel )
+    objsToTest.push( buttonMorphSync );
+
+    // Animation Clip Dropdown
+    addLabelRow( 'Animation Clip:' );
+    const animationPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const animationTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const animationText = new ThreeMeshUI.Text({ content: 'None' });
+    const animationCurrentTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const animationCurrentText = new ThreeMeshUI.Text({ content: 'None' });
+    animationTextPanel.add( animationText );
+    animationCurrentTextPanel.add( animationCurrentText );
+    const buttonSelectAnimation = new ThreeMeshUI.Block( buttonOptions );
+    buttonSelectAnimation.add( new ThreeMeshUI.Text( { content: 'next' } ));
+    const buttonApplyAnimation = new ThreeMeshUI.Block( buttonOptions );
+    buttonApplyAnimation.add( new ThreeMeshUI.Text( { content: 'apply' } ));
+
+	buttonSelectAnimation.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonSelectAnimation.setupState( hoveredStateAttributes );
+	buttonSelectAnimation.setupState( idleStateAttributes );
+
+    buttonApplyAnimation.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Apply Follow User' );
+
+		}
+	});
+
+	buttonApplyAnimation.setupState( hoveredStateAttributes );
+	buttonApplyAnimation.setupState( idleStateAttributes );
+
+    animationPanel.add( animationTextPanel, buttonSelectAnimation, buttonApplyAnimation );
+    panel.add( animationCurrentTextPanel, animationPanel )
+    objsToTest.push( buttonSelectAnimation, buttonApplyAnimation );
+
+    // Animation Sync Checkbox
+    const animationSyncPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const animationSyncTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const animationSyncText = new ThreeMeshUI.Text({ content: 'Sync: ON' });
+    animationSyncTextPanel.add( animationSyncText );
+    const buttonAnimationSync = new ThreeMeshUI.Block( buttonOptions );
+    buttonAnimationSync.add( new ThreeMeshUI.Text( { content: 'on/off' } ));
+
+	buttonAnimationSync.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonAnimationSync.setupState( hoveredStateAttributes );
+	buttonAnimationSync.setupState( idleStateAttributes );
+
+    animationSyncPanel.add( animationSyncTextPanel, buttonAnimationSync );
+    panel.add( animationSyncPanel )
+    objsToTest.push( buttonAnimationSync );
+
+    // Animation Loop Checkbox
+    const animationLoopPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const animationLoopTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const animationLoopText = new ThreeMeshUI.Text({ content: 'Loop: OFF' });
+    animationLoopTextPanel.add( animationLoopText );
+    const buttonAnimationLoop = new ThreeMeshUI.Block( buttonOptions );
+    buttonAnimationLoop.add( new ThreeMeshUI.Text( { content: 'on/off' } ));
+
+	buttonAnimationLoop.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+
+		    console.log( 'Selected Follow User' );
+
+		}
+	});
+
+	buttonAnimationLoop.setupState( hoveredStateAttributes );
+	buttonAnimationLoop.setupState( idleStateAttributes );
+
+    animationLoopPanel.add( animationLoopTextPanel, buttonAnimationLoop );
+    panel.add( animationLoopPanel )
+    objsToTest.push( buttonAnimationLoop );
+ 
     // Create Timeline UI
     // Load a glTF resource
     loader.load(
@@ -258,9 +558,63 @@ function startXR( event ) {
             console.log( 'An error happened' );
         }
     );
-
-    
 } 
+
+// Function to make XR buttons work
+function updateButtons() {
+
+	// Find closest intersecting object
+	let intersect;
+
+	//vrControl.setFromController( 0, raycaster.ray );
+    raycaster.setFromXRController( controller1 );
+	intersect = raycast();
+
+	// Position the little white dot at the end of the controller pointing ray
+	if ( intersect ) 
+        raycaster.set( 0, intersect.point );
+
+	// Update targeted button state (if any)
+	if ( intersect && intersect.object.isUI ) {
+		if ( selectState ) {
+			// Component.setState internally call component.set with the options you defined in component.setupState
+			intersect.object.setState( 'selected' );
+
+		} else {
+			// Component.setState internally call component.set with the options you defined in component.setupState
+			intersect.object.setState( 'hovered' );
+		}
+	}
+
+	// Update non-targeted buttons state
+	objsToTest.forEach( ( obj ) => {
+
+		if ( ( !intersect || obj !== intersect.object ) && obj.isUI ) {
+			// Component.setState internally call component.set with the options you defined in component.setupState
+			obj.setState( 'idle' );
+		}
+	});
+
+}
+
+function raycast() {
+
+	return objsToTest.reduce( ( closestIntersection, obj ) => {
+
+		const intersection = raycaster.intersectObject( obj, true );
+
+		if ( !intersection[ 0 ] ) 
+            return closestIntersection;
+
+		if ( !closestIntersection || intersection[ 0 ].distance < closestIntersection.distance ) {
+			intersection[ 0 ].object = obj;
+			return intersection[ 0 ];
+		}
+
+		return closestIntersection;
+
+	}, null );
+}
 
 function trackVRHeadset() {
     // Get WebXR camera
@@ -423,7 +777,7 @@ function render() {
             // Update my slider user name (me)
             updateSliderValue( slider, sliderName );
 
-            if (session) {
+            if ( session ) {
                 handle.morphTargetInfluences[ 0 ] = currentFrame/100;
             }
 
@@ -441,6 +795,11 @@ function render() {
 
         // Sync Avatar head with VR Headset
         trackVRHeadset();
+
+        // Update XR UI
+        ThreeMeshUI.update();
+        // Handle controllers
+        updateButtons();
 
         if ( controller1.userData && controller1.userData.inputSource ) {
 
@@ -497,6 +856,9 @@ animate();
 // Emit Create Camera
 socket.emit( 'createCamera', userName );
 
+
+
+// ********************************************************************
 
 // Windows Behaviour & Events *****************************************
 
