@@ -245,6 +245,7 @@ function startXR( event ) {
     interactiveGroup.listenToXRControllerEvents( controller2 );
     scene.add( interactiveGroup );
 
+<<<<<<< HEAD
     // ************** three-mesh-ui panel setup ********************************
     // Remove any previous panel if needed
     if ( scene.getObjectByName( 'xrUIPanel' ) ) {
@@ -534,6 +535,8 @@ function startXR( event ) {
     panel.add( animationLoopPanel )
     objsToTest.push( buttonAnimationLoop );
  
+=======
+>>>>>>> 0b0d322da673102a9837df8245ee18f002752588
     // Create Timeline UI
     // Load a glTF resource
     loader.load(
@@ -776,7 +779,11 @@ function render() {
             updateFrameNumber();
             // Update my slider user name (me)
             updateSliderValue( slider, sliderName );
+<<<<<<< HEAD
 
+=======
+            // Update slider from XR session
+>>>>>>> 0b0d322da673102a9837df8245ee18f002752588
             if ( session ) {
                 handle.morphTargetInfluences[ 0 ] = currentFrame/100;
             }
@@ -810,8 +817,8 @@ function render() {
                 const previouslyPressed = controller1.userData.buttons[ index ];
                
                 // Check if the button is on hold
-                if ( button.pressed && previouslyPressed )
-                        console.log("HOLD " + `${index}` )
+                /* if ( button.pressed && previouslyPressed )
+                        console.log("HOLD " + `${index}` ) */
 
                 // Check which button is pressedf
                 if ( button.pressed && !previouslyPressed ) {
