@@ -107,6 +107,9 @@ var objsToTest = [];
 // Raycaster 
 var raycaster;
 
+// XR UI 
+var onlineUsersText = null;
+
 // Create the Follow Dropdown menu and attribute a variable to get the list
 listFollowUsers = followFolder.addBlade({
     view: 'list',
@@ -254,7 +257,7 @@ function startXR( event ) {
     // Create the main panel
      const panel = new ThreeMeshUI.Block({
         width: 1.2,
-        height: 1.9,
+        height: 2.0,
         padding: 0.05,
         fontSize: 0.045,
         justifyContent: 'start',
@@ -317,13 +320,16 @@ function startXR( event ) {
     // Online Users
     addLabelRow( 'Online Users:' );
     const onlineUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, backgroundOpacity: 0 });
-    const onlineUsersText = new ThreeMeshUI.Text({ content: "None" });  
+    onlineUsersText = new ThreeMeshUI.Text({ content: arrayUsers.length > 0 ? arrayUsers.join( ', ' ) : 'None' });  
     onlineUsersPanel.add( onlineUsersText );
     panel.add( onlineUsersPanel );
     
     // Follow User Dropdown
     addLabelRow( 'Follow User:' );
     const followUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const followCurrentUsersTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const followCurrentUsersText = new ThreeMeshUI.Text({ content: 'None' });
+    followCurrentUsersTextPanel.add( followCurrentUsersText );
     const followUsersTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
     const followUsersText = new ThreeMeshUI.Text({ content: 'None' });
     followUsersTextPanel.add( followUsersText );
@@ -359,7 +365,7 @@ function startXR( event ) {
 	buttonApplyFollowUser.setupState( idleStateAttributes );
 
     followUsersPanel.add( followUsersTextPanel, buttonSelectFollowUser, buttonApplyFollowUser );
-    panel.add( followUsersPanel )
+    panel.add( followCurrentUsersTextPanel, followUsersPanel )
     objsToTest.push( buttonSelectFollowUser, buttonApplyFollowUser );
 
     // Double check this
@@ -1338,6 +1344,11 @@ socket.on( 'userConnected', function( msg ) {
         arrayUsers.push( msg );
         // Print the names on the slider
         document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
+
+        // Update XR UI 
+        if (onlineUsersText !== null) {
+            onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+        }
     }
 });
 
@@ -1376,6 +1387,11 @@ socket.once( 'checkWhosOnline', function( msg ){
             arrayUsers.push( msg[ k ] );
             // Print the names on the slider
             document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
+
+            // Update XR UI 
+            if (onlineUsersText !== null) {
+                onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+            }
 
             if( document.getElementById( "slider" + msg[ k ].toString() ) == null ){
                 // Create Timeline Sliders and its attributes
@@ -1436,6 +1452,11 @@ socket.on( 'userDisconnected', function( msg ) {
     if( flags.isAnimationSync )
         // Print the names on the slider
         document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
+
+    // Update XR UI 
+    if (onlineUsersText !== null) {
+        onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+    }
 });
 
 // On non XR camera change
