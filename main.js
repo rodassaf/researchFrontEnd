@@ -74,6 +74,11 @@ var animationClipObject = {
     clip: 'none',
 };
 
+// Create animation loop boolean object to bind ui
+var animationLoop = {
+    loop: false,
+};
+
 // Create a UI Pane
 const pane = new Pane({
     expanded: true,
@@ -109,6 +114,9 @@ var raycaster;
 
 // XR UI 
 var onlineUsersText = null;
+var animationCurrentText = null;
+var followIndex = 0;
+var animationIndex = 0;
 
 // Create the Follow Dropdown menu and attribute a variable to get the list
 listFollowUsers = followFolder.addBlade({
@@ -167,6 +175,9 @@ function init() {
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
             noXRCameraUpdate();
             createGUI( gltf.scene, gltf.animations );
+
+            // Trigger event when a XR session is started
+            renderer.xr.addEventListener( 'sessionstart', ( event ) => { startXR( gltf.animations ) } );
         },
         // called while loading is progressing
         function ( xhr ) {
@@ -185,12 +196,11 @@ function init() {
     // Trigger event when a not XR camera is being manipulated
     controls.addEventListener( 'change', noXRCameraUpdate );
 
-    // Trigger event when a XR session is started
-    renderer.xr.addEventListener( 'sessionstart', startXR);
 }
 
 // XR **************************************************************************
-function startXR( event ) {
+function startXR( animations ) {
+    console.log(animations)
     // Remove keyboard controls
     controls.removeEventListener( 'change', noXRCameraUpdate )
     controls.dispose();
@@ -320,7 +330,7 @@ function startXR( event ) {
     // Online Users
     addLabelRow( 'Online Users:' );
     const onlineUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, backgroundOpacity: 0 });
-    onlineUsersText = new ThreeMeshUI.Text({ content: arrayUsers.length > 0 ? arrayUsers.join( ', ' ) : 'None' });  
+    onlineUsersText = new ThreeMeshUI.Text({ content: arrayUsers.length > 0 ? arrayUsers.join( ', ' ) : 'None' });  //Global variable to hold online users
     onlineUsersPanel.add( onlineUsersText );
     panel.add( onlineUsersPanel );
     
@@ -328,10 +338,10 @@ function startXR( event ) {
     addLabelRow( 'Follow User:' );
     const followUsersPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
     const followCurrentUsersTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const followCurrentUsersText = new ThreeMeshUI.Text({ content: 'None' });
+    const followCurrentUsersText = new ThreeMeshUI.Text({ content: 'none' });
     followCurrentUsersTextPanel.add( followCurrentUsersText );
     const followUsersTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const followUsersText = new ThreeMeshUI.Text({ content: 'None' });
+    const followUsersText = new ThreeMeshUI.Text({ content: 'none' });
     followUsersTextPanel.add( followUsersText );
     const buttonSelectFollowUser = new ThreeMeshUI.Block( buttonOptions );
     buttonSelectFollowUser.add( new ThreeMeshUI.Text( { content: 'next' } ));
@@ -342,9 +352,12 @@ function startXR( event ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
+            if ( followIndex < listFollowUsers.options.length - 1 ) 
+                followIndex++;
+            else 
+                followIndex = 0;
 
-		    console.log( 'Selected Follow User' );
-
+            followUsersText.set( { content: listFollowUsers.options[ followIndex ].value } );
 		}
 	});
 
@@ -356,7 +369,7 @@ function startXR( event ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		    console.log( 'Apply Follow User' );
+		    followCurrentUsersText.set( { content: listFollowUsers.options[ followIndex ].value } )
 
 		}
 	});
@@ -367,15 +380,6 @@ function startXR( event ) {
     followUsersPanel.add( followUsersTextPanel, buttonSelectFollowUser, buttonApplyFollowUser );
     panel.add( followCurrentUsersTextPanel, followUsersPanel )
     objsToTest.push( buttonSelectFollowUser, buttonApplyFollowUser );
-
-    // Double check this
-    /*     buttonSelectFollowUser.on( 'click', () => {
-        // Get the next user in the list
-        const currentIndex = listFollowUsers.options.findIndex( option => option.value === followUser );
-        const nextIndex = (currentIndex + 1) % listFollowUsers.options.length;
-        followUser = listFollowUsers.options[nextIndex].value;
-        followUsersText.set({ content: followUser });
-    }); */
 
     // Morph Targets Dropdown
     addLabelRow( 'Morph Object:' );
@@ -391,7 +395,7 @@ function startXR( event ) {
     const buttonApplyMorph = new ThreeMeshUI.Block( buttonOptions );
     buttonApplyMorph.add( new ThreeMeshUI.Text( { content: 'apply' } ));
 
-	buttonSelectFollowUser.setupState( {
+	buttonSelectMorph.setupState( {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
@@ -450,9 +454,9 @@ function startXR( event ) {
     addLabelRow( 'Animation Clip:' );
     const animationPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
     const animationTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const animationText = new ThreeMeshUI.Text({ content: 'None' });
+    const animationText = new ThreeMeshUI.Text({ content: 'none' });
     const animationCurrentTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const animationCurrentText = new ThreeMeshUI.Text({ content: 'None' });
+    animationCurrentText = new ThreeMeshUI.Text({ content: 'none' });
     animationTextPanel.add( animationText );
     animationCurrentTextPanel.add( animationCurrentText );
     const buttonSelectAnimation = new ThreeMeshUI.Block( buttonOptions );
@@ -464,9 +468,12 @@ function startXR( event ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
+            if ( animationIndex < animationFolder.children[ 0 ].options.length - 1 ) 
+                animationIndex++;
+            else 
+                animationIndex = 0;
 
-		    console.log( 'Selected Follow User' );
-
+            animationText.set( { content: animationFolder.children[ 0 ].options[ animationIndex ].value } );
 		}
 	});
 
@@ -477,8 +484,18 @@ function startXR( event ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
+            // Update the text
+		    animationCurrentText.set( { content: animationFolder.children[ 0 ].options[ animationIndex ].value } );
+            // Save as a global variable
+            currentClip = THREE.AnimationClip.findByName( animations, animationFolder.children[ 0 ].options[ animationIndex ].value );
 
-		    console.log( 'Apply Follow User' );
+            if( action )
+                action.stop();
+            action = mixer.clipAction( currentClip );
+            action.clampWhenFinished = true // pause in the last keyframe
+            action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
+
+            socket.emit( 'onClipChange', animationFolder.children[ 0 ].options[ animationIndex ].value, flags.isAnimationSync, userName );   
 
 		}
 	});
@@ -822,6 +839,10 @@ function render() {
                 // Check which button is pressedf
                 if ( button.pressed && !previouslyPressed ) {
                     console.log( `Button ${index} just pressed` );
+                    if( index === 4 ) 
+                        playPause();
+                    if( index === 5 ) 
+                        restart();
                     controller1.userData.buttons[ index ] = true;
                 } else if (!button.pressed && previouslyPressed) { // Release button
                 controller1.userData.buttons[ index ] = false;
@@ -1017,12 +1038,6 @@ function createGUI( model, animations) {
     let animationOptions = {
         none: 'none',
     };
-    
-    // Create animation loop boolean object to bind ui
-    let animationLoop = {
-        loop: false,
-      };
-    
 
     listFollowUsers.on( "change", function( ev ){
         handleFollowUser( ev.value ); 
@@ -1481,11 +1496,15 @@ socket.on( 'updateXRCamera', function( msg ){
 
 // On clip change
 socket.on( 'onClipChange', function( clip, sync, user ){
+    // Check if there is a XR session
+    const session = renderer.xr.getSession()
 
     // Update the UI
     if( flags.isAnimationSync == true && sync == true ){
         if( animationFolder.children[ 0 ].controller.value.rawValue != clip ) 
             animationFolder.children[ 0 ].controller.value.rawValue = clip;
+        if( session )
+            animationCurrentText.set( { content: clip } );
     }
 
     // Check if it is the same clip running
