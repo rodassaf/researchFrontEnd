@@ -442,10 +442,10 @@ function startXR( animations ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		   flags.isMorphSync = !flags.isMorphSync;
-           morphCheckText.set( { content: flags.isMorphSync ? 'Sync: ON' : 'Sync: OFF' } );
-
-		}
+		    flags.isMorphSync = !flags.isMorphSync;
+            morphCheckText.set( { content: flags.isMorphSync ? 'Sync: ON' : 'Sync: OFF' } );
+                    
+        }
 	});
 
 	buttonMorphSync.setupState( hoveredStateAttributes );
@@ -528,6 +528,14 @@ function startXR( animations ) {
 		    flags.isAnimationSync = !flags.isAnimationSync;
             animationSyncText.set( { content: flags.isAnimationSync ? 'Sync: ON' : 'Sync: OFF' } );
 
+            if ( action ) 
+                action.paused = true;
+           
+            if( flags.isAnimationSync === true ) 
+                socket.emit( 'addSyncUser', userName, currentClip ); 
+            else
+                socket.emit( 'removeSyncUser', userName, currentClip );
+
 		}
 	});
 
@@ -550,9 +558,15 @@ function startXR( animations ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
+            
+            animationLoop.loop = !animationLoop.loop;
+            animationLoopText.set( { content: flags.isAnimationSync ? 'Loop: ON' : 'Loop: OFF' } );
 
-		    console.log( 'Selected Follow User' );
-
+		    if( flags.isAnimationSync === true ) {
+                socket.emit( 'onLoopChange', animationLoop.loop ); 
+                if( action )
+                    action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
+            }
 		}
 	});
 
@@ -1679,7 +1693,6 @@ socket.on( 'addSyncUser', function( user, clip ){
 
     if( currentClip && clip && clip.name == currentClip.name ) {
         arrayUsers.push( user );
-        console.log(arrayUsers)
 
         if( flags.isAnimationSync ) {
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
