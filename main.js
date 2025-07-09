@@ -116,6 +116,7 @@ var raycaster;
 var onlineUsersText = null;
 var animationCurrentText = null;
 var followIndex = 0;
+var morphIndex = 0;
 var animationIndex = 0;
 
 // Create the Follow Dropdown menu and attribute a variable to get the list
@@ -369,7 +370,7 @@ function startXR( animations ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		    followCurrentUsersText.set( { content: listFollowUsers.options[ followIndex ].value } )
+		    followCurrentUsersText.set( { content: listFollowUsers.options[ followIndex ].value } );
 
 		}
 	});
@@ -399,9 +400,12 @@ function startXR( animations ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
+             if ( morphIndex < morphFolder.children[ 0 ].options.length - 1 ) 
+                morphIndex++;
+            else 
+                morphIndex = 0;
 
-		    console.log( 'Selected Follow User' );
-
+            morphText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } ); 
 		}
 	});
 
@@ -413,7 +417,7 @@ function startXR( animations ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		    console.log( 'Apply Follow User' );
+		    morphCurrentText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } );
 
 		}
 	});
@@ -438,7 +442,8 @@ function startXR( animations ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		    console.log( 'Selected Follow User' );
+		   flags.isMorphSync = !flags.isMorphSync;
+           morphCheckText.set( { content: flags.isMorphSync ? 'Sync: ON' : 'Sync: OFF' } );
 
 		}
 	});
@@ -520,7 +525,8 @@ function startXR( animations ) {
 		attributes: selectedAttributes,
 		onSet: () => {
 
-		    console.log( 'Selected Follow User' );
+		    flags.isAnimationSync = !flags.isAnimationSync;
+            animationSyncText.set( { content: flags.isAnimationSync ? 'Sync: ON' : 'Sync: OFF' } );
 
 		}
 	});
@@ -1059,7 +1065,7 @@ function createGUI( model, animations) {
 
     // Feed the binded object for options
     for( let i = 0; i < objectsWithMorphTargets.length; i++ ){
-        objectOptions[objectsWithMorphTargets[i]] = objectsWithMorphTargets[i];
+        objectOptions[ objectsWithMorphTargets[ i ] ] = objectsWithMorphTargets[ i ];
     }
   
     // If there is morph target
