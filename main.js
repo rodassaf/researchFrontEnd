@@ -115,6 +115,8 @@ var raycaster;
 // XR UI 
 var onlineUsersText = null;
 var animationCurrentText = null;
+var morphCurrentText = null;
+var animationLoopText = null;
 var followIndex = 0;
 var morphIndex = 0;
 var animationIndex = 0;
@@ -386,7 +388,7 @@ function startXR( animations ) {
     addLabelRow( 'Morph Object:' );
     const morphPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
     const morphCurrentTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const morphCurrentText = new ThreeMeshUI.Text({ content: 'None' });
+    morphCurrentText = new ThreeMeshUI.Text({ content: 'None' });
     const morphTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
     const morphText = new ThreeMeshUI.Text({ content: 'None' });
     morphTextPanel.add( morphText );
@@ -418,6 +420,9 @@ function startXR( animations ) {
 		onSet: () => {
 
 		    morphCurrentText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } );
+            // Emit change to server
+            if( flags.isMorphSync === true )
+                socket.emit( 'onObjectMorphChange', morphFolder.children[ 0 ].options[ morphIndex ].value );
 
 		}
 	});
@@ -549,7 +554,7 @@ function startXR( animations ) {
     // Animation Loop Checkbox
     const animationLoopPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
     const animationLoopTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const animationLoopText = new ThreeMeshUI.Text({ content: 'Loop: OFF' });
+    animationLoopText = new ThreeMeshUI.Text({ content: 'Loop: OFF' });
     animationLoopTextPanel.add( animationLoopText );
     const buttonAnimationLoop = new ThreeMeshUI.Block( buttonOptions );
     buttonAnimationLoop.add( new ThreeMeshUI.Text( { content: 'on/off' } ));
@@ -560,7 +565,7 @@ function startXR( animations ) {
 		onSet: () => {
             
             animationLoop.loop = !animationLoop.loop;
-            animationLoopText.set( { content: flags.isAnimationSync ? 'Loop: ON' : 'Loop: OFF' } );
+            animationLoopText.set( { content: animationLoop.loop ? 'Loop: ON' : 'Loop: OFF' } );
 
 		    if( flags.isAnimationSync === true ) {
                 socket.emit( 'onLoopChange', animationLoop.loop ); 
@@ -1338,6 +1343,9 @@ socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
 socket.on( 'onObjectMorphChange', function( value ) {
     if( flags.isMorphSync == true ){
         morphFolder.children[0].controller.value.rawValue = value;
+        // Update XR UI if it exists
+        if ( morphCurrentText !== null ) 
+            morphCurrentText.set( { content: value } );
     }
 });
 
@@ -1424,7 +1432,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
 
             // Update XR UI 
-            if (onlineUsersText !== null) {
+            if ( onlineUsersText !== null ) {
                 onlineUsersText.set( { content: arrayUsers.join(', ') } );  
             }
 
@@ -1563,8 +1571,12 @@ socket.on( 'onClipChange', function( clip, sync, user ){
 
 // On loop change
 socket.on( 'onLoopChange', function( value ){
-    if( flags.isAnimationSync == true )
+    if( flags.isAnimationSync == true ) {
         animationFolder.children[ 1 ].controller.value.rawValue = value;
+        // Update XR UI if it exists
+        if ( animationLoopText !== null )
+            animationLoopText.set( { content: value ? 'Loop: ON' : 'Loop: OFF' } ); 
+    }
 }); 
 
 // Play animation
@@ -1811,12 +1823,5 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             }
         }
     }
-
-    
-
-    
-
-
-
 
 });
