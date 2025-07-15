@@ -1770,10 +1770,14 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     
     // ReTell everyone what is the current status
     //socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
+    const session = renderer.xr.getSession()
 
     if( flags.isAnimationSync == true && sync == true ){
-        if( animationClipObject.clip != clip )
+        if( animationClipObject.clip != clip ) {
             animationFolder.children[ 0 ].controller.value.rawValue = clip;
+            if ( session )
+                animationCurrentText.set( { content: clip } );
+        }
 
         if( action ) {
             if( action.isRunning() !== true ) 
@@ -1784,6 +1788,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             
             // Update the current slider
             document.getElementById( "myTimeline" ).value = progress; // Update slider to match animation
+
+            if( session ){        
+                handle.morphTargetInfluences[ 0 ] = progress/100;
+            }
                           
             // Update local slider name (me) 
             updateSliderValue( slider, sliderName );
