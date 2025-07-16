@@ -117,6 +117,9 @@ var onlineUsersText = null;
 var animationCurrentText = null;
 var morphCurrentText = null;
 var animationLoopText = null;
+var xrSliderThumb = null;
+var xrFrameText = null;
+var xrAnimationSliderTrack = null;
 var followIndex = 0;
 var morphIndex = 0;
 var animationIndex = 0;
@@ -270,7 +273,7 @@ function startXR( animations ) {
     // Create the main panel
      const panel = new ThreeMeshUI.Block({
         width: 1.2,
-        height: 2.0,
+        height: 2.3,
         padding: 0.05,
         fontSize: 0.045,
         justifyContent: 'start',
@@ -388,9 +391,9 @@ function startXR( animations ) {
     addLabelRow( 'Morph Object:' );
     const morphPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
     const morphCurrentTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    morphCurrentText = new ThreeMeshUI.Text({ content: 'None' });
+    morphCurrentText = new ThreeMeshUI.Text({ content: 'none' });
     const morphTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
-    const morphText = new ThreeMeshUI.Text({ content: 'None' });
+    const morphText = new ThreeMeshUI.Text({ content: 'none' });
     morphTextPanel.add( morphText );
     morphCurrentTextPanel.add( morphCurrentText );
     const buttonSelectMorph = new ThreeMeshUI.Block( buttonOptions );
@@ -582,6 +585,43 @@ function startXR( animations ) {
     panel.add( animationLoopPanel )
     objsToTest.push( buttonAnimationLoop );
  
+    // Create the track (static)
+    xrAnimationSliderTrack = new ThreeMeshUI.Block({
+        width: 1.0,
+        height: 0.05,
+        backgroundColor: new THREE.Color(0x222222),
+        justifyContent: 'end',
+        alignItems: 'end',
+        borderRadius: 0.02,
+        padding: 0.01,
+        margin: 0.08
+    });
+    //sliderTrack.position.set(0, 1.5, -1.5); // Example position
+    panel.add( xrAnimationSliderTrack );
+
+    // Create the thumb (movable)
+    xrSliderThumb = new ThreeMeshUI.Block({
+        width: 0.04,
+        height: 0.04,
+        backgroundColor: new THREE.Color(0xffffff),
+        justifyContent: 'center',
+        borderRadius: 0.02,
+    });
+    // Set the thumb's initial position to be not affected by the panel's position
+    xrSliderThumb.autoLayout = false;
+
+    xrAnimationSliderTrack.add( xrSliderThumb );
+
+    xrSliderThumb.position.set( -0.5, 0, 0 );
+
+    // Create the frame counter
+    const xrFramePanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0, padding: 0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    xrFrameText = new ThreeMeshUI.Text({ content: '0001' });
+    xrFramePanel.add( xrFrameText );
+    panel.add( xrFramePanel );
+  
+
+
     // Create Timeline UI
     // Load a glTF resource
     loader.load(
@@ -827,6 +867,9 @@ function render() {
 
             if ( session ) {
                 handle.morphTargetInfluences[ 0 ] = currentFrame/100;
+            
+                // Update the thumb position
+                xrSliderThumb.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0; 
             }
 
         }
@@ -858,9 +901,19 @@ function render() {
                 const previouslyPressed = controller1.userData.buttons[ index ];
                
                 // Check if the button is on hold
-                if ( button.pressed && previouslyPressed )
-                        console.log("HOLD " + `${index}` )
+                if ( button.pressed && previouslyPressed ){
+                        //console.log("HOLD " + `${index}` )
+                    if (index === 1) {// Grabbing slider
+                        const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+                        const sliderWorldPos = new THREE.Vector3().setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
 
+                         // Move thumb along X relative to the track
+                        const localX = controllerPos.x - sliderWorldPos.x;
+                        const clampedX = THREE.MathUtils.clamp(localX, -0.5, 0.5);
+
+                        xrSliderThumb.position.x = clampedX;
+                    }
+                }
                 // Check which button is pressedf
                 if ( button.pressed && !previouslyPressed ) {
                     console.log( `Button ${index} just pressed` );
@@ -1006,6 +1059,9 @@ function updateFrameNumber() {
     let frameNumber = document.getElementById( "frameNumber" );
     let value = slider.value;
     frameNumber.textContent = value.toString().padStart(4, '0');
+    // Update XR Frame Text
+    if ( xrFrameText !== null )
+        xrFrameText.set( { content: value.toString().padStart(4, '0') } );
 }
 
 function handleFollowUser( user ) {
@@ -1791,6 +1847,9 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
 
             if( session ){        
                 handle.morphTargetInfluences[ 0 ] = progress/100;
+
+                // Update the thumb position
+                xrSliderThumb.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
             }
                           
             // Update local slider name (me) 
