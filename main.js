@@ -120,6 +120,7 @@ var animationLoopText = null;
 var xrSliderThumb = null;
 var xrFrameText = null;
 var xrAnimationSliderTrack = null;
+var xrAnimationDragging = false;
 var followIndex = 0;
 var morphIndex = 0;
 var animationIndex = 0;
@@ -238,10 +239,16 @@ function startXR( animations ) {
     // Basic Controller Events
     controller1.addEventListener('selectstart', () => {
         selectState = true;
+
+        const intersections = raycaster.intersectObject( xrSliderThumb, true );
+
+        if (intersections.length > 0) 
+            xrAnimationDragging = true;
     });
 
     controller1.addEventListener('selectend', () => {
         selectState = false;
+        xrAnimationDragging = false;
     }); 
 
     rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
@@ -902,17 +909,8 @@ function render() {
                
                 // Check if the button is on hold
                 if ( button.pressed && previouslyPressed ){
-                        //console.log("HOLD " + `${index}` )
-                    if (index === 1) {// Grabbing slider
-                        const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-                        const sliderWorldPos = new THREE.Vector3().setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+                    //console.log("HOLD " + `${index}` )
 
-                         // Move thumb along X relative to the track
-                        const localX = controllerPos.x - sliderWorldPos.x;
-                        const clampedX = THREE.MathUtils.clamp(localX, -0.5, 0.5);
-
-                        xrSliderThumb.position.x = clampedX;
-                    }
                 }
                 // Check which button is pressedf
                 if ( button.pressed && !previouslyPressed ) {
@@ -928,6 +926,38 @@ function render() {
             });
             
         } 
+
+        // Handle XR Animation Slider when dragging
+        if ( xrAnimationDragging ) {
+            const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+            const sliderWorldPos = new THREE.Vector3().setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+
+            // Move thumb along X relative to the track
+            const localX = controllerPos.x - sliderWorldPos.x;
+            const clampedX = THREE.MathUtils.clamp(localX, -0.5, 0.5);
+
+            xrSliderThumb.position.x = clampedX;
+
+            if ( action ) {
+                if( action.isRunning() !== true ) 
+                    action.play();
+                action.paused = true;
+
+                 // Optional: calculate and store normalized slider value
+                const normalized = ( clampedX + 0.5 ); // 0 to 1
+                const frame = Math.round( normalized * ( action.getClip().duration * frameRate) );
+                slider.value = frame; // Update slider to match animation
+
+                const currentFrame = parseInt( frame );
+                action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
+                mixer.update( 0 ); // Apply the new time
+                updateFrameNumber();
+                
+                let progress = Math.round( action.time * frameRate );
+                // Emit value
+                socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
+            } 
+        }
   
 /*         for ( const source of session.inputSources ) {
             if ( source.gamepad ) {
