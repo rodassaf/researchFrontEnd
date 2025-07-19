@@ -23,7 +23,8 @@ var socket = io( "http://localhost:3000" , {
     },
     query: {
         "userName":  userName
-    } 
+    } ,
+    transports: ["websocket"]
 });
 
 // Global variables ***************************************************************
@@ -124,6 +125,12 @@ var xrAnimationDragging = false;
 var followIndex = 0;
 var morphIndex = 0;
 var animationIndex = 0;
+let grabOffset = 0;
+let sliderXAxis = new THREE.Vector3();
+let sliderNormal = new THREE.Vector3();
+let sliderCenter = new THREE.Vector3();
+const minX = -0.5;
+const maxX = 0.5;
 
 // Create the Follow Dropdown menu and attribute a variable to get the list
 listFollowUsers = followFolder.addBlade({
@@ -184,7 +191,10 @@ function init() {
             createGUI( gltf.scene, gltf.animations );
 
             // Trigger event when a XR session is started
-            renderer.xr.addEventListener( 'sessionstart', ( event ) => { startXR( gltf.animations ) } );
+            renderer.xr.addEventListener( 'sessionstart', ( event ) => {
+                // Start XR
+                startXR( gltf.animations );
+            } );
         },
         // called while loading is progressing
         function ( xhr ) {
@@ -216,13 +226,32 @@ function startXR( animations ) {
     geometry = new THREE.BufferGeometry();
     geometry.setFromPoints( [ new THREE.Vector3( 0, 0, 0 ), new THREE.Vector3( 0, 0, - 5 ) ] );
 
-    controller1 = renderer.xr.getController( 0 );
+     // Assign Left and Right Controllers before starting XR
+    let session = renderer.xr.getSession();
+    let inputSources = session.inputSources;
+
+    controller1 = renderer.xr.getController( 1 );
     controller1.add( new THREE.Line( geometry ) );
     scene.add( controller1 );
 
-    controller2 = renderer.xr.getController( 1 );
+    controller2 = renderer.xr.getController( 0 );
     controller2.add( new THREE.Line( geometry ) );
     scene.add( controller2 );
+
+/*     // Fix controllers 
+    session.addEventListener('inputsourceschange', () => {
+        const inputSources = session.inputSources;
+
+        for (let i = 0; i < inputSources.length; i++) {
+            if (inputSources[i].handedness === 'right') {
+                controller1 = renderer.xr.getController(i);
+                console.log( "Right controller found at index: " + i );
+            } else if (inputSources[i].handedness === 'left') {
+                controller2 = renderer.xr.getController(i);
+                console.log( "Left controller found at index: " + i );
+            }
+        }
+    }); */
 
     // When the controller is connected we can store 3 properties into a custom object named userData (which is attached to any object in threejs)
     controller1.addEventListener( 'connected', ( event ) => {
@@ -242,8 +271,23 @@ function startXR( animations ) {
 
         const intersections = raycaster.intersectObject( xrSliderThumb, true );
 
-        if (intersections.length > 0) 
+        if ( intersections.length > 0 ) {
             xrAnimationDragging = true;
+            
+            const hitPoint = intersections[0].point.clone();
+
+            // Get the world position of the thumb (not the track)
+            const thumbWorldPos = new THREE.Vector3().setFromMatrixPosition(xrSliderThumb.matrixWorld);
+
+            // Slider direction (X) and plane normal (Y)
+            sliderCenter.setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+            sliderXAxis.set(1, 0, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
+            sliderNormal.set(0, 1, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
+
+            // Vector from thumb center to ray hit
+            const hitOffsetVec = new THREE.Vector3().subVectors(hitPoint, thumbWorldPos);
+            grabOffset = hitOffsetVec.dot(sliderXAxis); // signed offset from center of thumb
+        }
     });
 
     controller1.addEventListener('selectend', () => {
@@ -889,7 +933,7 @@ function render() {
     socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
 
     // XR Session to get controllers buttons
-    if ( session ) {
+    if ( session && controller1 && controller2 ) {
 
         // Sync Avatar head with VR Headset
         trackVRHeadset();
@@ -929,34 +973,42 @@ function render() {
 
         // Handle XR Animation Slider when dragging
         if ( xrAnimationDragging ) {
-            const controllerPos = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-            const sliderWorldPos = new THREE.Vector3().setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+            const rayOrigin = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+            const rayDir = new THREE.Vector3(0, 0, -1)
+                .applyMatrix4(new THREE.Matrix4().extractRotation(controller1.matrixWorld))
+                .normalize();
 
-            // Move thumb along X relative to the track
-            const localX = controllerPos.x - sliderWorldPos.x;
-            const clampedX = THREE.MathUtils.clamp(localX, -0.5, 0.5);
+            const ray = new THREE.Ray(rayOrigin, rayDir);
+            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(sliderNormal, sliderCenter);
+            const intersectPoint = new THREE.Vector3();
 
-            xrSliderThumb.position.x = clampedX;
+            if (ray.intersectPlane(sliderPlane, intersectPoint)) {
+                const dragVec = new THREE.Vector3().subVectors(intersectPoint, sliderCenter);
+                let projectedX = dragVec.dot(sliderXAxis) - grabOffset;
 
-            if ( action ) {
-                if( action.isRunning() !== true ) 
-                    action.play();
-                action.paused = true;
+                projectedX = THREE.MathUtils.clamp(projectedX, minX, maxX);
+                xrSliderThumb.position.x = projectedX;
 
-                 // Optional: calculate and store normalized slider value
-                const normalized = ( clampedX + 0.5 ); // 0 to 1
-                const frame = Math.round( normalized * ( action.getClip().duration * frameRate) );
-                slider.value = frame; // Update slider to match animation
+                if ( action ) {
+                    if( action.isRunning() !== true ) 
+                        action.play();
+                    action.paused = true;
 
-                const currentFrame = parseInt( frame );
-                action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
-                mixer.update( 0 ); // Apply the new time
-                updateFrameNumber();
-                
-                let progress = Math.round( action.time * frameRate );
-                // Emit value
-                socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
-            } 
+                    // Calculate and store normalized slider value
+                    const normalized = (projectedX - minX) / (maxX - minX);
+                    const frame = Math.round( normalized * ( action.getClip().duration * frameRate) );
+                    slider.value = frame; // Update slider to match animation
+
+                    const currentFrame = parseInt( frame );
+                    action.time =  Math.min( currentClip.duration, currentFrame / frameRate );
+                    mixer.update( 0 ); // Apply the new time
+                    updateFrameNumber();
+                        
+                    let progress = Math.round( action.time * frameRate );
+                    // Emit value
+                    socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
+                } 
+            }
         }
   
 /*         for ( const source of session.inputSources ) {
