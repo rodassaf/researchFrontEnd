@@ -117,11 +117,16 @@ var raycaster;
 var onlineUsersText = null;
 var animationCurrentText = null;
 var morphCurrentText = null;
+var morphChannelCurrentText = null;
 var animationLoopText = null;
 var xrSliderThumb = null;
 var xrFrameText = null;
 var xrAnimationSliderTrack = null;
+var xrMorpherSliderTrack = null;
+var xrSliderMorpherThumb = null;
+var xrMorpherValueText = null;
 var xrAnimationDragging = false;
+var xrMorpherDragging = false;
 var followIndex = 0;
 var morphIndex = 0;
 var animationIndex = 0;
@@ -217,7 +222,7 @@ function init() {
 
 // XR **************************************************************************
 function startXR( animations ) {
-    console.log(animations)
+
     // Remove keyboard controls
     controls.removeEventListener( 'change', noXRCameraUpdate )
     controls.dispose();
@@ -269,30 +274,59 @@ function startXR( animations ) {
     controller1.addEventListener('selectstart', () => {
         selectState = true;
 
-        const intersections = raycaster.intersectObject( xrSliderThumb, true );
+        const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb ], true );
 
         if ( intersections.length > 0 ) {
-            xrAnimationDragging = true;
-            
+
+            const hit = intersections[0];
+            let selectedRoot = hit.object;
             const hitPoint = intersections[0].point.clone();
 
-            // Get the world position of the thumb (not the track)
-            const thumbWorldPos = new THREE.Vector3().setFromMatrixPosition(xrSliderThumb.matrixWorld);
+            // Traverse up the parent chain to find which root object was selected
+            while (selectedRoot.parent && selectedRoot !== xrSliderThumb && selectedRoot !== xrSliderMorpherThumb) {
+                selectedRoot = selectedRoot.parent;
+            }
 
-            // Slider direction (X) and plane normal (Y)
-            sliderCenter.setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
-            sliderXAxis.set(1, 0, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
-            sliderNormal.set(0, 1, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
+            if (selectedRoot === xrSliderThumb) {
+                console.log("xrSliderThumb selected");
+                xrAnimationDragging = true;
 
-            // Vector from thumb center to ray hit
-            const hitOffsetVec = new THREE.Vector3().subVectors(hitPoint, thumbWorldPos);
-            grabOffset = hitOffsetVec.dot(sliderXAxis); // signed offset from center of thumb
+                // Get the world position of the thumb (not the track)
+                let thumbWorldPos = new THREE.Vector3().setFromMatrixPosition(xrSliderThumb.matrixWorld);
+
+                // Slider direction (X) and plane normal (Y)
+                sliderCenter.setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+                sliderXAxis.set(1, 0, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
+                sliderNormal.set(0, 1, 0).applyQuaternion(xrAnimationSliderTrack.quaternion).normalize();
+
+                // Vector from thumb center to ray hit
+                const hitOffsetVec = new THREE.Vector3().subVectors(hitPoint, thumbWorldPos);
+                grabOffset = hitOffsetVec.dot(sliderXAxis); // signed offset from center of thumb
+
+            } else if (selectedRoot === xrSliderMorpherThumb) {
+                console.log("xrSliderMorpherThumb selected");
+                xrMorpherDragging = true;
+
+                // Get the world position of the thumb (not the track)
+                let thumbWorldPos = new THREE.Vector3().setFromMatrixPosition(xrSliderMorpherThumb.matrixWorld);
+
+                // Slider direction (X) and plane normal (Y)
+                sliderCenter.setFromMatrixPosition(xrMorpherSliderTrack.matrixWorld);
+                sliderXAxis.set(1, 0, 0).applyQuaternion(xrMorpherSliderTrack.quaternion).normalize();
+                sliderNormal.set(0, 1, 0).applyQuaternion(xrMorpherSliderTrack.quaternion).normalize();
+
+                // Vector from thumb center to ray hit
+                const hitOffsetVec = new THREE.Vector3().subVectors(hitPoint, thumbWorldPos);
+                grabOffset = hitOffsetVec.dot(sliderXAxis); // signed offset from center of thumb
+            } 
+
         }
     });
 
     controller1.addEventListener('selectend', () => {
         selectState = false;
         xrAnimationDragging = false;
+        xrMorpherDragging = false;
     }); 
 
     rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
@@ -324,7 +358,7 @@ function startXR( animations ) {
     // Create the main panel
      const panel = new ThreeMeshUI.Block({
         width: 1.2,
-        height: 2.3,
+        height: 2.9,
         padding: 0.05,
         fontSize: 0.045,
         justifyContent: 'start',
@@ -452,6 +486,18 @@ function startXR( animations ) {
     const buttonApplyMorph = new ThreeMeshUI.Block( buttonOptions );
     buttonApplyMorph.add( new ThreeMeshUI.Text( { content: 'apply' } ));
 
+    const morphChannelPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.1, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
+    const morphChannelTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    morphChannelCurrentText = new ThreeMeshUI.Text({ content: 'noneee' });
+    const morphOptionTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.1, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const morphOptionText = new ThreeMeshUI.Text({ content: 'nonecc' });
+    morphChannelTextPanel.add( morphChannelCurrentText );
+    morphOptionTextPanel.add( morphOptionText );
+    const buttonSelectChannelMorph = new ThreeMeshUI.Block( buttonOptions );
+    buttonSelectChannelMorph.add( new ThreeMeshUI.Text( { content: 'next' } ));
+    const buttonApplyChannelMorph = new ThreeMeshUI.Block( buttonOptions );
+    buttonApplyChannelMorph.add( new ThreeMeshUI.Text( { content: 'apply' } ));
+
 	buttonSelectMorph.setupState( {
 		state: 'selected',
 		attributes: selectedAttributes,
@@ -484,9 +530,33 @@ function startXR( animations ) {
 	buttonApplyMorph.setupState( hoveredStateAttributes );
 	buttonApplyMorph.setupState( idleStateAttributes );
 
+    buttonSelectChannelMorph.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+            console.log("Button Select Channel Morph clicked");
+		}
+	});
+
+	buttonSelectChannelMorph.setupState( hoveredStateAttributes );
+	buttonSelectChannelMorph.setupState( idleStateAttributes );
+
+    buttonApplyChannelMorph.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+            console.log("Button Apply Channel Morph clicked");
+		}
+	});
+
+	buttonApplyChannelMorph.setupState( hoveredStateAttributes );
+	buttonApplyChannelMorph.setupState( idleStateAttributes );
+
     morphPanel.add( morphTextPanel, buttonSelectMorph, buttonApplyMorph );
-    panel.add( morphCurrentTextPanel, morphPanel )
-    objsToTest.push( buttonSelectMorph, buttonApplyMorph );
+    morphChannelPanel.add( morphChannelTextPanel, buttonSelectChannelMorph, buttonApplyChannelMorph );
+    
+    panel.add( morphCurrentTextPanel, morphPanel, morphOptionTextPanel, morphChannelPanel );
+    objsToTest.push( buttonSelectMorph, buttonApplyMorph, buttonSelectChannelMorph, buttonApplyChannelMorph );
 
     // Morph Sync Checkbox
     const morphCheckPanel = new ThreeMeshUI.Block({ width: 1.1, height: 0.12, margin: 0.02, padding: 0.0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0, justifyContent: 'space-between' });
@@ -513,6 +583,42 @@ function startXR( animations ) {
     morphCheckPanel.add( morphCheckTextPanel, buttonMorphSync );
     panel.add( morphCheckPanel )
     objsToTest.push( buttonMorphSync );
+
+    // Create the track (static)
+    xrMorpherSliderTrack = new ThreeMeshUI.Block({
+        width: 1.0,
+        height: 0.05,
+        backgroundColor: new THREE.Color(0x222222),
+        justifyContent: 'end',
+        alignItems: 'end',
+        borderRadius: 0.02,
+        padding: 0.01,
+        margin: 0.08
+    });
+    //sliderTrack.position.set(0, 1.5, -1.5); // Example position
+    panel.add( xrMorpherSliderTrack );
+
+    // Create the thumb (movable)
+    xrSliderMorpherThumb = new ThreeMeshUI.Block({
+        width: 0.04,
+        height: 0.04,
+        backgroundColor: new THREE.Color(0xffffff),
+        justifyContent: 'center',
+        borderRadius: 0.02,
+    });
+    // Set the thumb's initial position to be not affected by the panel's position
+    xrSliderMorpherThumb.autoLayout = false;
+
+    xrMorpherSliderTrack.add( xrSliderMorpherThumb );
+
+    xrSliderMorpherThumb.position.set( -0.5, 0, 0 );
+
+    // Create the frame counter
+    const xrFrameMorpherValuePanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0, padding: 0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    xrMorpherValueText = new ThreeMeshUI.Text({ content: '0' });
+    xrFrameMorpherValuePanel.add( xrMorpherValueText );
+    panel.add( xrFrameMorpherValuePanel );
+  
 
     // Animation Clip Dropdown
     addLabelRow( 'Animation Clip:' );
@@ -984,9 +1090,9 @@ function render() {
 
             if (ray.intersectPlane(sliderPlane, intersectPoint)) {
                 const dragVec = new THREE.Vector3().subVectors(intersectPoint, sliderCenter);
-                let projectedX = dragVec.dot(sliderXAxis) - grabOffset;
+                let projectedX = dragVec.dot( sliderXAxis ) - grabOffset;
 
-                projectedX = THREE.MathUtils.clamp(projectedX, minX, maxX);
+                projectedX = THREE.MathUtils.clamp( projectedX, minX, maxX );
                 xrSliderThumb.position.x = projectedX;
 
                 if ( action ) {
@@ -996,7 +1102,7 @@ function render() {
 
                     // Calculate and store normalized slider value
                     const normalized = (projectedX - minX) / (maxX - minX);
-                    const frame = Math.round( normalized * ( action.getClip().duration * frameRate) );
+                    const frame = Math.round( normalized * ( action.getClip().duration * frameRate ) );
                     slider.value = frame; // Update slider to match animation
 
                     const currentFrame = parseInt( frame );
@@ -1010,7 +1116,27 @@ function render() {
                 } 
             }
         }
-  
+
+        // Handle XR Morpher Slider when dragging
+        if ( xrMorpherDragging ) {
+            const rayOrigin = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+            const rayDir = new THREE.Vector3(0, 0, -1)
+                .applyMatrix4(new THREE.Matrix4().extractRotation(controller1.matrixWorld))
+                .normalize();
+
+            const ray = new THREE.Ray(rayOrigin, rayDir);
+            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(sliderNormal, sliderCenter);
+            const intersectPoint = new THREE.Vector3();
+
+            if (ray.intersectPlane(sliderPlane, intersectPoint)) {
+                const dragVec = new THREE.Vector3().subVectors(intersectPoint, sliderCenter);
+                let projectedX = dragVec.dot( sliderXAxis ) - grabOffset;
+
+                projectedX = THREE.MathUtils.clamp( projectedX, minX, maxX );
+                xrSliderMorpherThumb.position.x = projectedX;
+                xrMorpherValueText.set( { content: Math.round( ( projectedX - minX ) / ( maxX - minX ) * 100 ).toString() } );
+            }
+        }
 /*         for ( const source of session.inputSources ) {
             if ( source.gamepad ) {
                 const axes = source.gamepad.axes;  
