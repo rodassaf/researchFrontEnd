@@ -917,6 +917,38 @@ function trackVRHeadset() {
     }
 }
 
+// Function to create multiple colored slider animation thumbs on XR panel
+function createXRThumb( color, userName ) {
+    console.log("Creating thumb for user:", userName, "with color:", color);
+    const newThumb = new ThreeMeshUI.Block({
+        width: 0.04,
+        height: 0.04,
+        backgroundColor: new THREE.Color( color ),
+        justifyContent: 'center',
+        borderRadius: 0.02,
+    });
+
+    // Set a name, position and autolayout
+    newThumb.name = 'xrSliderThumb' + userName;
+    newThumb.autoLayout = false;
+    newThumb.position.set( -0.5, 0, 0 );
+    
+    //Hide it by default
+    //newThumb.visible = false;
+
+    xrAnimationSliderTrack.add( newThumb );
+}
+
+function removeXRThumb( userName ) {
+    const thumbName = 'xrSliderThumb' + userName;
+    const thumbToRemove = xrAnimationSliderTrack.getObjectByName( thumbName );
+    if ( thumbToRemove ) {
+        xrAnimationSliderTrack.remove( thumbToRemove );
+        console.log("Removed thumb for user:", userName);
+    } else {
+        console.log("Thumb not found for user:", userName);
+    }
+}
 
 function loadAvatar( gltfString, userCamera ) {
     // Load an avatar
@@ -1712,7 +1744,8 @@ socket.on( 'userConnected', function( msg ) {
 
         // Update XR UI 
         if (onlineUsersText !== null) {
-            onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+            onlineUsersText.set( { content: arrayUsers.join(', ') } );
+            createXRThumb( getRandomHexColor(), msg );
         }
     }
 });
@@ -1820,7 +1853,8 @@ socket.on( 'userDisconnected', function( msg ) {
 
     // Update XR UI 
     if (onlineUsersText !== null) {
-        onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+        onlineUsersText.set( { content: arrayUsers.join(', ') } );
+        removeXRThumb( msg );
     }
 });
 
