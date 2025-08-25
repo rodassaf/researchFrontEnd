@@ -537,6 +537,8 @@ function startXR( animations, model ) {
                 if(morphNameTargets.length > 0 ) {
                     morphOptionText.set( { content: morphNameTargets[0] } );
                     morphChannelCurrentText.set( { content: morphNameTargets[0] } );
+                    // Update Slider value based on the morph value
+                    xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
                 }
             } else {
                 morphOptionText.set( { content: 'none' } );
@@ -574,6 +576,8 @@ function startXR( animations, model ) {
 		attributes: selectedAttributes,
 		onSet: () => {
             morphOptionText.set( { content: morphNameTargets[ morphChannelIndex ] } ); 
+            // Update Slider value based on the morph value
+            xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
 		}
 	});
 
@@ -1176,10 +1180,9 @@ function render() {
 
                 // Emit the value to the server
                 if ( morphOptionText !== null && morphOptionText.content !== 'none' ) {
-                    console.log(morphNameTargets.indexOf( morphOptionText.content ), morphOptionText.content, normalized );
-                    //socket.emit( 'onSliderMorphChange', morphOptionText.content, morphNameTargets.indexOf( morphOptionText.content ), normalized );
+                    socket.emit( 'onSliderMorphChange', morphCurrentText.content, morphNameTargets.indexOf( morphOptionText.content ), normalized );
                     // Update the morph target influence on the mesh
-                    //model.getObjectByName( currentObjectSelection.morphObject ).morphTargetInfluences[ morphNameTargets.indexOf( ev.target.label ) ] = ev.value ;
+                    scene.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] = normalized;
                 }
             }
         }
