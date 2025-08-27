@@ -808,7 +808,7 @@ function startXR( animations, model ) {
     xrAnimationSliderTrack.add( xrSliderThumb );
 
     xrSliderThumb.position.set( -0.5, 0, 0 );
-
+    
     // Create the frame counter
     const xrFramePanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0, padding: 0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
     xrFrameText = new ThreeMeshUI.Text({ content: '0001' });
@@ -942,6 +942,25 @@ function createXRThumb( color, userName ) {
     newThumb.visible = false;
 
     xrAnimationSliderTrack.add( newThumb );
+
+    // Create the SliderThumb Name Label
+    const sliderLabel = new ThreeMeshUI.Block({
+        width: 0.2,
+        height: 0.05,
+        justifyContent: 'center',
+        alignItems: 'center',
+        margin: 0.02,
+    });
+
+    sliderLabel.autoLayout = false;
+    // Add text
+    sliderLabel.add(new ThreeMeshUI.Text({ content: userName }));
+    sliderLabel.position.y = -0.05;
+    sliderLabel.position.x = -0.5;
+    sliderLabel.name = 'xrSliderLabel' + userName;
+    sliderLabel.visible = false;
+
+    xrAnimationSliderTrack.add( sliderLabel );
 }
 
 function removeXRThumb( userName ) {
@@ -1102,9 +1121,12 @@ function render() {
                 handle.morphTargetInfluences[ 0 ] = currentFrame/100;
             
                 // Update the thumb position
-                xrSliderThumb.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0; 
+                xrSliderThumb.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0;
+                // Show my thumb
+                let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + userName );
+                if ( myThumb ) 
+                    myThumb.position.x = xrSliderThumb.position.x;
             }
-
         }
     }
 
@@ -1605,8 +1627,10 @@ function createGUI( model, animations) {
                         if (session) {
                             // Hide the thumb on XR too
                             let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                            let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
                             if ( thumbToHide ) {
                                 thumbToHide.visible = false;
+                                labelToHide.visible = false;
                             }
                         }   
                     }
@@ -1636,8 +1660,10 @@ function createGUI( model, animations) {
                     // Show XR Thumb too
                     if (session) {
                         let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[0].toString() );
+                        let labelToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[0].toString() );
                         if ( thumbToShow ) {
                             thumbToShow.visible = true;
+                            labelToShow.visible = true;
                         }
                     }
                      // Print the names on the slider
@@ -1654,8 +1680,10 @@ function createGUI( model, animations) {
                             // Hide the rest of the Thumbs on XR too
                             if (session) {
                                 let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[i].toString() );
+                                let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[i].toString() );
                                 if ( thumbToHide ) {
                                     thumbToHide.visible = false;
+                                    labelToHide.visible = false;
                                 }
                             }  
                         }
@@ -2030,10 +2058,15 @@ socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
         updateSliderValue( slider, sliderValue ); 
 
         if( session ){
-          //  let normalized = currentFrame / ( currentClip.duration * frameRate );
-          let slider = scene.getObjectByName( "xrSliderThumb" + user );
-          if( slider )
-            slider.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0;
+            //  let normalized = currentFrame / ( currentClip.duration * frameRate );
+            let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            if( slider )
+                slider.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0;
+
+            // Move my label thumb
+            let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+            if ( myThumb ) 
+                myThumb.position.x = slider.position.x;
         }
     }
 }); 
@@ -2160,8 +2193,10 @@ socket.on( 'addSyncUser', function( user, clip ){
             // Hide the thumb on XR too
             if (session) {
                 let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
                 if ( thumbToHide ) {
                     thumbToHide.visible = false;
+                    labelToHide.visible = false;
                 }
             }
             // Print the names on the slider
@@ -2176,8 +2211,11 @@ socket.on( 'addSyncUser', function( user, clip ){
                     // Hide the thumb on XR too
                     if (session) {
                         let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[ i ].toString() );
-                        if ( thumbToHide ) 
+                        let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[ i ].toString() );
+                        if ( thumbToHide ) {
                             thumbToHide.visible = false;  
+                            labelToHide.visible = false;
+                        }
                     }
 
                 }
@@ -2205,8 +2243,10 @@ socket.on( 'removeSyncUser', function( user, clip ){
         // Show the thumb on XR too
         if (session) {
             let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+            let labelToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
             if ( thumbToShow ) {
                 thumbToShow.visible = true;
+                labelToShow.visible = true;
             }
         }
 
@@ -2217,8 +2257,10 @@ socket.on( 'removeSyncUser', function( user, clip ){
         // Hide the thumb on XR too
         if (session) {
             let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+            let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
             if ( thumbToHide ) {
                 thumbToHide.visible = false;
+                labelToHide.visible = false;
             }
         }
     }
@@ -2231,8 +2273,10 @@ socket.on( 'removeSyncUser', function( user, clip ){
             // Hide the rest of the Thumbs on XR too
             if (session) {
                 let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[i].toString() );
+                let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[i].toString() );
                 if ( thumbToHide ) {
                     thumbToHide.visible = false;
+                    labelToHide.visible = false;
                 }
             }
         }
@@ -2244,8 +2288,10 @@ socket.on( 'removeSyncUser', function( user, clip ){
         // Show the thumb on XR too
         if (session) {
             let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[ 0 ].toString() );
+            let labelToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[ 0 ].toString() );
             if ( thumbToShow ) {
                 thumbToShow.visible = true;
+                labelToShow.visible = true;
             }
         }
     }
@@ -2287,6 +2333,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
 
                 // Update the thumb position
                 xrSliderThumb.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+                // Move my Label thumb
+                let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+                if ( myThumb ) 
+                    myThumb.position.x = xrSliderThumb.position.x;
             }
                           
             // Update local slider name (me) 
@@ -2321,6 +2371,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             let slider = scene.getObjectByName( "xrSliderThumb" + user.toString() );
             if( slider )
                 slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+            // Move my label thumb
+            let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+            if ( myThumb ) 
+                myThumb.position.x = slider.position.x;
         }
 
         if( arrayUsers.length > 1 ){
@@ -2339,6 +2393,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
                     let slider = scene.getObjectByName( "xrSliderThumb" + arrayUsers[ i ].toString() );
                     if( slider )
                         slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+                    // Show my thumb
+                    let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[ i ].toString() );
+                    if ( myThumb ) 
+                        myThumb.position.x = slider.position.x;
                 }
             }
         }
