@@ -157,7 +157,7 @@ var followUser = "none";
 // Instantiate a loader
 const loader = new GLTFLoader();
 
-// Start 3D scene
+// Start 3D scene *****************************************************************
 function init() { 
     scene.background = new THREE.Color( 0x444444 );
     renderer.setPixelRatio( window.devicePixelRatio );
@@ -815,7 +815,12 @@ function startXR( animations, model ) {
     xrFramePanel.add( xrFrameText );
     panel.add( xrFramePanel );
   
-
+    // Check who is online and create a thumb for each user 
+    if ( arrayUsers.length > 0 ) {
+        for ( let k = 0; k < arrayUsers.length; k++ ) 
+            if ( arrayUsers[ k ] !== userName ) // Don't create a thumb for yourself
+                createXRThumb( getRandomHexColor(), arrayUsers[ k ] );  
+    }
 
     // Create Timeline UI
     // Load a glTF resource
@@ -841,7 +846,7 @@ function startXR( animations, model ) {
             console.log( 'An error happened' );
         }
     );
-} 
+} // End of initXR() 
 
 // Function to make XR buttons work
 function updateButtons() {
@@ -1850,7 +1855,7 @@ socket.on( 'userDisconnected', function( msg ) {
     removeFollowOption( msg );
     let tempCameraHelper = scene.getObjectByName( msg );
 
-    if( tempCameraHelper !== null ){
+    if( tempCameraHelper ){
         let tempCamera = tempCameraHelper.camera;
         scene.remove( tempCameraHelper );
         tempCameraHelper.dispose();
