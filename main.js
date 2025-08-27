@@ -919,7 +919,7 @@ function trackVRHeadset() {
 
 // Function to create multiple colored slider animation thumbs on XR panel
 function createXRThumb( color, userName ) {
-    console.log("Creating thumb for user:", userName, "with color:", color);
+    // Create the thumb (movable)
     const newThumb = new ThreeMeshUI.Block({
         width: 0.04,
         height: 0.04,
@@ -934,7 +934,7 @@ function createXRThumb( color, userName ) {
     newThumb.position.set( -0.5, 0, 0 );
     
     //Hide it by default
-    //newThumb.visible = false;
+    newThumb.visible = false;
 
     xrAnimationSliderTrack.add( newThumb );
 }
@@ -1412,6 +1412,9 @@ function createGUI( model, animations) {
         handleFollowUser( ev.value ); 
     });
 
+    // Check if there is a XR Session
+    const session = renderer.xr.getSession();
+
     // Find objects with Morphs or Blendshapes
     model.traverseVisible( ( object ) => {
             if ( object.isMesh && object.geometry.morphAttributes ) {
@@ -1594,6 +1597,13 @@ function createGUI( model, animations) {
                     for( const user of arrayUsers ){
                         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
                         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+                        if (session) {
+                            // Hide the thumb on XR too
+                            let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                            if ( thumbToHide ) {
+                                thumbToHide.visible = false;
+                            }
+                        }   
                     }
                 }
 
@@ -1618,6 +1628,13 @@ function createGUI( model, animations) {
                     // Get at least one representant of the synced users
                     document.getElementById( "slider" + arrayUsers[0].toString() ).style.visibility = "visible";
                     document.getElementById( "sliderString" + arrayUsers[0].toString() ).style.visibility = "visible";
+                    // Show XR Thumb too
+                    if (session) {
+                        let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[0].toString() );
+                        if ( thumbToShow ) {
+                            thumbToShow.visible = true;
+                        }
+                    }
                      // Print the names on the slider
                     document.getElementById( "sliderString" + arrayUsers[0].toString() ).innerHTML = [...arrayUsers].join('<br>');
                     // Make sure that the value is the same When we turn off Sync
@@ -1629,6 +1646,13 @@ function createGUI( model, animations) {
                              // Hide
                             document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
                             document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+                            // Hide the rest of the Thumbs on XR too
+                            if (session) {
+                                let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[i].toString() );
+                                if ( thumbToHide ) {
+                                    thumbToHide.visible = false;
+                                }
+                            }  
                         }
                     }
                 }
@@ -1788,7 +1812,8 @@ socket.once( 'checkWhosOnline', function( msg ){
 
             // Update XR UI 
             if ( onlineUsersText !== null ) {
-                onlineUsersText.set( { content: arrayUsers.join(', ') } );  
+                onlineUsersText.set( { content: arrayUsers.join(', ') } );
+                createXRThumb( getRandomHexColor(), msg[ k ] );  
             }
 
             if( document.getElementById( "slider" + msg[ k ].toString() ) == null ){
@@ -1897,10 +1922,22 @@ socket.on( 'onClipChange', function( clip, sync, user ){
         if( flags.isAnimationSync == true && sync == true){
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user ).style.visibility = "hidden";
+            // Hide XR Slider if it exists
+            if (session) {
+                let slider = scene.getObjectByName( "xrSliderThumb" + user );
+                if( slider )
+                    slider.visible = false;
+            }
         }
         else{
             document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
             document.getElementById( "sliderString" + user ).style.visibility = "visible";
+            // Show XR Slider if it exists
+            if (session) {
+                let slider = scene.getObjectByName( "xrSliderThumb" + user );
+                if( slider ) 
+                    slider.visible = true;
+            }
         }
 
         // Prepare the Timeline
@@ -1912,12 +1949,24 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     } else {
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        // Hide XR Slider if it exists
+        if (session) {
+            let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            if( slider )
+                slider.visible = false;
+        }
     }
 
     // Make sure the slider is hidden when NONE is selected
     if( clip.name == "none" ){
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        // Hide XR Slider if it exists
+        if (session) {
+            let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            if( slider )
+                slider.visible = false;
+        }
     }
 
     // Consult who has the Same Clip or Not REVIEW THIS!!!!!!!!
@@ -1962,6 +2011,8 @@ socket.on( 'play', function( clip, time, loop ){
 
 // Play animation of a follow user
 socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
+    // Check if there is a XR session
+    const session = renderer.xr.getSession()
 
     if( currentClip && clip.name == currentClip.name ){
      
@@ -1972,6 +2023,13 @@ socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
         // Initialize position
         slider.value = currentFrame;
         updateSliderValue( slider, sliderValue ); 
+
+        if( session ){
+          //  let normalized = currentFrame / ( currentClip.duration * frameRate );
+          let slider = scene.getObjectByName( "xrSliderThumb" + user );
+          if( slider )
+            slider.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0;
+        }
     }
 }); 
 
@@ -2024,16 +2082,30 @@ socket.on( 'askSync', function( user, sync, progress ){
 
 // Update Sliders
 socket.on( 'askClip', function( clip, user, sync ){
+    // Check if there is a XR session
+    const session = renderer.xr.getSession()
 
     // Check if it is the same clip running
     if( currentClip && clip && clip.name == currentClip.name ) {
         if( flags.isAnimationSync == true && sync == true && arrayUsers.length > 0){
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+            // Hide XR Slider if it exists
+            if (session) {
+                let slider = scene.getObjectByName( "xrSliderThumb" + user );
+                if( slider )
+                    slider.visible = false;
+            }
         }
         else{
             document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
+            // Show XR Slider if it exists
+            if (session) {
+                let slider = scene.getObjectByName( "xrSliderThumb" + user );
+                if( slider )
+                    slider.visible = true;
+            }
         }
 
 
@@ -2047,17 +2119,32 @@ socket.on( 'askClip', function( clip, user, sync ){
     } else {
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        // Hide XR Slider if it exists
+        if (session) {
+            let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            if( slider )
+                slider.visible = false;
+        }
     }
 
     // Make sure the slider is hidden when NONE is selected
     if( !clip || clip.name == "none" ){
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        // Hide XR Slider if it exists
+        if (session) {
+            let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            if( slider )
+                slider.visible = false;
+        }
     }
 });
 
 // Add Sync User
 socket.on( 'addSyncUser', function( user, clip ){
+
+    // Check if there is a XR session
+    const session = renderer.xr.getSession()
 
     if( currentClip && clip && clip.name == currentClip.name ) {
         arrayUsers.push( user );
@@ -2065,15 +2152,29 @@ socket.on( 'addSyncUser', function( user, clip ){
         if( flags.isAnimationSync ) {
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+            // Hide the thumb on XR too
+            if (session) {
+                let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                if ( thumbToHide ) {
+                    thumbToHide.visible = false;
+                }
+            }
             // Print the names on the slider
             document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
         } else {
             if( arrayUsers.length > 1 ) {
                 document.getElementById( "sliderString" + arrayUsers[ arrayUsers.length-1 ].toString() ).innerHTML = [ ...arrayUsers ].join( '<br>' );
                 for( let i = 0; i < arrayUsers.length-1; i++ ){
-                    console.log(arrayUsers[ i ])
+                    //console.log(arrayUsers[ i ])
                     document.getElementById( "slider" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
                     document.getElementById( "sliderString" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
+                    // Hide the thumb on XR too
+                    if (session) {
+                        let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[ i ].toString() );
+                        if ( thumbToHide ) 
+                            thumbToHide.visible = false;  
+                    }
+
                 }
             }
         }
@@ -2082,6 +2183,9 @@ socket.on( 'addSyncUser', function( user, clip ){
 
 // Remove Sync User
 socket.on( 'removeSyncUser', function( user, clip ){
+    // Check if there is a XR session
+    const session = renderer.xr.getSession()
+
     // Remove user from list of users synced if he/she is there
     const index = arrayUsers.indexOf( user );
     if( index !== -1 ) 
@@ -2093,11 +2197,25 @@ socket.on( 'removeSyncUser', function( user, clip ){
         document.getElementById( "sliderString" + user.toString() ).innerHTML = user.toString();
        // document.getElementById( "slider" + user.toString() ).value = slider.value;
        // updateSliderValue( document.getElementById( "slider" + user.toString() ), document.getElementById( "sliderString" + user.toString() ) ); 
+        // Show the thumb on XR too
+        if (session) {
+            let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+            if ( thumbToShow ) {
+                thumbToShow.visible = true;
+            }
+        }
 
     }
     else{
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+        // Hide the thumb on XR too
+        if (session) {
+            let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+            if ( thumbToHide ) {
+                thumbToHide.visible = false;
+            }
+        }
     }
 
     if( arrayUsers.length > 1 && arrayUsers.length != 1) {
@@ -2105,12 +2223,26 @@ socket.on( 'removeSyncUser', function( user, clip ){
              // Hide
             document.getElementById( "slider" + arrayUsers[i].toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + arrayUsers[i].toString() ).style.visibility = "hidden";
+            // Hide the rest of the Thumbs on XR too
+            if (session) {
+                let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[i].toString() );
+                if ( thumbToHide ) {
+                    thumbToHide.visible = false;
+                }
+            }
         }
     }
 
     if( arrayUsers.length == 1 && !flags.isAnimationSync && currentClip && clip && clip.name == currentClip.name ) {
         document.getElementById( "slider" + arrayUsers[ 0 ].toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + arrayUsers[ 0 ].toString() ).style.visibility = "visible";
+        // Show the thumb on XR too
+        if (session) {
+            let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[ 0 ].toString() );
+            if ( thumbToShow ) {
+                thumbToShow.visible = true;
+            }
+        }
     }
 
     if( flags.isAnimationSync )
@@ -2160,8 +2292,8 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             if( arrayUsers.length > 0 ){
                 for( let i=0; i<arrayUsers.length; i++ ){
                     // Get the sliders from others
-                    let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
-                    let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
+                    let sliderTemp = document.getElementById( "slider" + arrayUsers[ i ].toString() );
+                    let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[ i ].toString() );
                     
                     sliderTemp.value = progress; // Update slider to match animation
                     updateSliderValue( sliderTemp, sliderValueTemp );
@@ -2171,6 +2303,7 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     }
 
     if( currentClip && clip && clip == currentClip.name ){
+        
          // Get the sliders from others
          let sliderTemp = document.getElementById( "slider" + user.toString() );
          let sliderValueTemp = document.getElementById( "sliderString" + user.toString() );
@@ -2178,15 +2311,30 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
          sliderTemp.value = progress; // Update slider to match animation
          updateSliderValue( sliderTemp, sliderValueTemp );
 
+        // Update XR Thumb UI from others if they exist in XR environment
+        if ( session ) {
+            let slider = scene.getObjectByName( "xrSliderThumb" + user.toString() );
+            if( slider )
+                slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+        }
+
         if( arrayUsers.length > 1 ){
+            
             for( let i=0; i<arrayUsers.length; i++ ){
                 
                 // Get the sliders from others
-                let sliderTemp = document.getElementById( "slider" + arrayUsers[i].toString() );
-                let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[i].toString() );
+                let sliderTemp = document.getElementById( "slider" + arrayUsers[ i ].toString() );
+                let sliderValueTemp = document.getElementById( "sliderString" + arrayUsers[ i ].toString() );
                 
                 sliderTemp.value = progress; // Update slider to match animation
                 updateSliderValue( sliderTemp, sliderValueTemp );
+                
+                // Update XR Thumb UI from others if they exist in XR environment
+                if ( session ) {
+                    let slider = scene.getObjectByName( "xrSliderThumb" + arrayUsers[ i ].toString() );
+                    if( slider )
+                        slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+                }
             }
         }
     }
