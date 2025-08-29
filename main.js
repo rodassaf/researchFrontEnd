@@ -143,6 +143,7 @@ var morphIndex = 0;
 var morphChannelIndex = 0;
 var animationIndex = 0;
 let grabOffset = 0;
+var xrPointer = false;
 let sliderXAxis = new THREE.Vector3();
 let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
@@ -352,6 +353,22 @@ function startXR( animations, model ) {
         xrAnimationDragging = false;
         xrMorpherDragging = false;
     }); 
+
+    controller1.addEventListener('squeezestart', () => {
+        xrPointer = true;
+    });
+
+    controller1.addEventListener('squeezeend', () => {
+        xrPointer = false;
+
+        let tempPointer = scene.getObjectByName( "pointer" + userName );
+        if ( tempPointer )
+            tempPointer.visible = false;
+
+        // Emit remove line to the server
+        socket.emit( 'lineRemove', userName );
+    });
+
 
     rightAxisWatcher.addEventListener( "rightAxisChange", () => console.log( rightAxisWatcher.value ) );
     leftAxisWatcher.addEventListener( "leftAxisChange", () => console.log( leftAxisWatcher.value ) );
@@ -1157,7 +1174,7 @@ function render() {
     socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
 
     // Handle Raycaster for Line Pointer
-    if (isShiftDown === true && meshModel.length > 0 ) {
+    if ( isShiftDown === true && meshModel.length > 0 ) {
         // Update the picking ray with the camera and mouse position
         raycaster.setFromCamera( mouse, camera );
         // Get Point B from raycaster intersection
@@ -1291,6 +1308,37 @@ function render() {
                     scene.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] = normalized;
                 }
             }
+        }
+
+        if ( xrPointer ) {
+            // Get controller orientation & position
+            let tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation( controller1.matrixWorld );
+
+            raycaster.ray.origin.setFromMatrixPosition( controller1.matrixWorld );
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4( tempMatrix );
+
+            const intersects = raycaster.intersectObjects( meshModel, true );
+            let pointB;
+
+            if ( intersects.length > 0 ) {
+                pointB = intersects[0].point.clone();
+            } else {
+                pointB = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(3));
+            }
+
+            // Get Point A from camera position
+            let pointA = camera.position.clone();
+
+            // Draw the local pointer
+            let tempPointer = scene.getObjectByName( "pointer" + userName );
+            if ( tempPointer ) {
+                tempPointer.position.copy( pointB );
+                tempPointer.visible = true;
+            }
+
+            // Emit the line to the server
+            socket.emit( 'lineUpdate', userName, pointA, pointB );
         }
 /*         for ( const source of session.inputSources ) {
             if ( source.gamepad ) {
