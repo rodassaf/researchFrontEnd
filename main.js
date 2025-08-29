@@ -32,6 +32,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
+const pointerSize = 0.02; // Pointer size in meters
 
 // Framerate
 const frameRate = 30;
@@ -204,6 +205,15 @@ function init() {
             
             // Create a array of Mesh to be used for raycasting
             gltf.scene.traverse(o => { if (o.isMesh) meshModel.push(o); });
+
+            // Create a pointer to see where I am pointing
+            let pointer = new THREE.Mesh(
+                new THREE.SphereGeometry(pointerSize, 16, 16),             // radius ~3cm
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            pointer.name = "pointer" + userName.toString();
+            pointer.visible = false;
+            scene.add( pointer );
 
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
             noXRCameraUpdate();
@@ -1162,6 +1172,13 @@ function render() {
         // Get Point A from camera position
         let pointA = camera.position.clone();
 
+        // Draw the local pointer
+        let tempPointer = scene.getObjectByName( "pointer" + userName );
+        if ( tempPointer ) {
+            tempPointer.position.copy( pointB );
+            tempPointer.visible = true;
+        }
+
         // Emit the line to the server
         socket.emit( 'lineUpdate', userName, pointA, pointB );
     } 
@@ -1337,6 +1354,12 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('keyup', (event) => {
     if (event.key === 'Shift') {
         isShiftDown = false;
+        
+        let tempPointer = scene.getObjectByName( "pointer" + userName );
+        if ( tempPointer )
+            tempPointer.visible = false;
+
+        // Emit remove line to the server
         socket.emit( 'lineRemove', userName );
     }   
 });
@@ -1859,6 +1882,16 @@ socket.on( 'userConnected', function( msg ) {
         tempLine.visible = false;
         scene.add( tempLine );
 
+        // Create a Round Pointer for this user
+        let pointer = new THREE.Mesh(
+            new THREE.SphereGeometry(pointerSize, 16, 16),             // radius ~3cm
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        pointer.name = "pointer" + msg;
+        pointer.visible = true;
+        tempLine.add(pointer);
+        console.log(pointer)
+
         // Update XR UI 
         if (onlineUsersText !== null) {
             onlineUsersText.set( { content: arrayUsers.join(', ') } );
@@ -1939,6 +1972,15 @@ socket.once( 'checkWhosOnline', function( msg ){
             tempLine.name = "line" + msg[ k ].toString();
             tempLine.visible = false;
             scene.add( tempLine );
+
+            // Create a Round Pointer for this user
+            let pointer = new THREE.Mesh(
+                new THREE.SphereGeometry(pointerSize, 16, 16),             // radius ~3cm
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            pointer.name = "pointer" +  msg[ k ].toString();
+            pointer.visible = true;
+            tempLine.add(pointer);
             
         }
         console.log('Added '+msg.length+' Cameras');
@@ -1984,11 +2026,21 @@ socket.on( 'userDisconnected', function( msg ) {
         onlineUsersText.set( { content: arrayUsers.join(', ') } );
         removeXRThumb( msg );
     }
+
+    // Remove Line 
+    let tempLine = scene.getObjectByName( "line" + msg );
+    if( tempLine ){
+        scene.remove( tempLine );
+        tempLine.geometry.dispose();
+        tempLine.material.dispose();
+    }
 });
 
 // On non XR camera change
 socket.on( 'updateCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
+    if( !tempCameraHelper ) 
+        return;
     tempCameraHelper.camera.position.set( msg.x, msg.y, msg.z );
     tempCameraHelper.camera.rotation.set( msg.lx, msg.ly, msg.lz );
     tempCameraHelper.camera.updateProjectionMatrix();
@@ -2192,9 +2244,12 @@ socket.on( 'askSync', function( user, sync, progress ){
 socket.on( 'lineUpdate', function( user, pointA, pointB ){
     
     let tempLine = scene.getObjectByName( "line" + user );
+    let tempPointer = tempLine.getObjectByName( "pointer" + user );
+
     if( tempLine ){
         console.log( "Line update from " + user );
         tempLine.geometry.setFromPoints( [ pointA, pointB ] );
+        tempPointer.position.set( pointB.x, pointB.y, pointB.z );
         tempLine.visible = true;
     }
 });
@@ -2203,6 +2258,7 @@ socket.on( 'lineUpdate', function( user, pointA, pointB ){
 socket.on( 'lineRemove', function( user ){
     
     let tempLine = scene.getObjectByName( "line" + user );
+
     if( tempLine ){
         console.log( "Line remove " + user );
         tempLine.visible = false;
