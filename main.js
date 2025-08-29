@@ -10,7 +10,7 @@ import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFa
 
 import RightAxisWatcher from "./rightAxisWatcher";
 import LeftAxisWatcher from "./LeftAxisWatcher";
-import { userData } from "three/tsl";
+import { temp, userData } from "three/tsl";
 
 var userName = prompt( "Please enter your name" );
 userName = userName.toString();
@@ -50,6 +50,13 @@ var slider, sliderName;
 
 // Controllers
 var geometry, controller1, controller2;
+
+// Var to get the model when it is loaded
+var meshModel = [];
+
+// Mouse and Shift key flag
+var mouse = new THREE.Vector2();
+var isShiftDown = false;
 
 // Controller X axis watcher
 var rightAxisWatcher = new RightAxisWatcher();
@@ -195,6 +202,9 @@ function init() {
             gltf.cameras; // Array<THREE.Camera>
             gltf.asset; // Object
             
+            // Create a array of Mesh to be used for raycasting
+            gltf.scene.traverse(o => { if (o.isMesh) meshModel.push(o); });
+
             fitCameraToObject( camera, gltf.scene, 1.6, controls );
             noXRCameraUpdate();
             createGUI( gltf.scene, gltf.animations );
@@ -1136,6 +1146,26 @@ function render() {
     // Emit camera position to others who want to follow me
     socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
 
+    // Handle Raycaster for Line Pointer
+    if (isShiftDown === true && meshModel.length > 0 ) {
+        // Update the picking ray with the camera and mouse position
+        raycaster.setFromCamera( mouse, camera );
+        // Get Point B from raycaster intersection
+        let pointB;
+        const intersects = raycaster.intersectObjects( meshModel, true );
+        
+        if ( intersects.length > 0 ) {
+            pointB = intersects[0].point.clone();
+        } else {
+            pointB = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(3));
+        }
+        // Get Point A from camera position
+        let pointA = camera.position.clone();
+
+        // Emit the line to the server
+        socket.emit( 'lineUpdate', userName, pointA, pointB );
+    } 
+
     // XR Session to get controllers buttons
     if ( session && controller1 && controller2 ) {
 
@@ -1290,6 +1320,26 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize( window.innerWidth, window.innerHeight );
 }
+
+// Mouse move event
+window.addEventListener( 'mousemove', ( event ) => {
+    if( isShiftDown === true) {
+        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+        mouse.y = -( event.clientY / window.innerHeight ) * 2 + 1;
+    }
+});
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'Shift') 
+        isShiftDown = true;
+});
+
+window.addEventListener('keyup', (event) => {
+    if (event.key === 'Shift') {
+        isShiftDown = false;
+        socket.emit( 'lineRemove', userName );
+    }   
+});
 
 // Timeline GUI *******************************************************
 
@@ -1799,6 +1849,16 @@ socket.on( 'userConnected', function( msg ) {
         // Print the names on the slider
         document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
 
+        // Create a Line Pointer for this user
+        let geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(), new THREE.Vector3()
+        ]);
+        let lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        let tempLine = new THREE.Line(geometry, lineMaterial);
+        tempLine.name = "line" + msg;
+        tempLine.visible = false;
+        scene.add( tempLine );
+
         // Update XR UI 
         if (onlineUsersText !== null) {
             onlineUsersText.set( { content: arrayUsers.join(', ') } );
@@ -1869,6 +1929,16 @@ socket.once( 'checkWhosOnline', function( msg ){
                 document.querySelector('.sliderContainer4Connected').appendChild(slider);
                 document.querySelector('.sliderContainer4Connected').appendChild(sliderString);
             }       
+
+            // Create a Line Pointer for this user
+            let geometry = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(), new THREE.Vector3()
+            ]);
+            let lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            let tempLine = new THREE.Line(geometry, lineMaterial);
+            tempLine.name = "line" + msg[ k ].toString();
+            tempLine.visible = false;
+            scene.add( tempLine );
             
         }
         console.log('Added '+msg.length+' Cameras');
@@ -2115,6 +2185,27 @@ socket.on( 'askSync', function( user, sync, progress ){
             slider.value = progress;
             updateSliderValue( slider, sliderValue ); 
             return;
+    }
+});
+
+// Line creation and updates
+socket.on( 'lineUpdate', function( user, pointA, pointB ){
+    
+    let tempLine = scene.getObjectByName( "line" + user );
+    if( tempLine ){
+        console.log( "Line update from " + user );
+        tempLine.geometry.setFromPoints( [ pointA, pointB ] );
+        tempLine.visible = true;
+    }
+});
+
+// Line remove
+socket.on( 'lineRemove', function( user ){
+    
+    let tempLine = scene.getObjectByName( "line" + user );
+    if( tempLine ){
+        console.log( "Line remove " + user );
+        tempLine.visible = false;
     }
 });
 
