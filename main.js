@@ -1011,7 +1011,7 @@ function removeXRThumb( userName ) {
     }
 }
 
-function loadAvatar( gltfString, userCamera ) {
+function loadAvatar( gltfString, userCamera, user ) {
     // Load an avatar
     loader.load(
         // resource URL
@@ -1020,6 +1020,7 @@ function loadAvatar( gltfString, userCamera ) {
         function ( gltf ) {
             
             let model = gltf.scene;
+            model.name = "avatar" + user;
 
             // Define a new material
             let newMaterial = new THREE.MeshStandardMaterial({
@@ -1169,9 +1170,6 @@ function render() {
 
     controls.update();
     renderer.render( scene, camera );
-
-    // Emit camera position to others who want to follow me
-    socket.emit( 'cameraUserFollow', userName, camera.position, camera.rotation );
 
     // Handle Raycaster for Line Pointer
     if ( isShiftDown === true && meshModel.length > 0 ) {
@@ -1503,13 +1501,34 @@ function updateFrameNumber() {
 
 function handleFollowUser( user ) {
 
-    followUser = user;
     if( user !== "none" ){
+        followUser = user;
         // Remove keyboard controls
         controls.enabled = false;
+        let userCameraHelper = scene.getObjectByName( user );
+        let userAvatar = scene.getObjectByName( "avatar" + user );
+        
+        if ( userCameraHelper ) {
+            // Hide it
+            userCameraHelper.visible = false;
+            userAvatar.visible = false;
+            socket.emit( 'hide', userName, user );
+            socket.emit( 'getAllCamera', userName );
+        }
     } else {
+        let userCameraHelper = scene.getObjectByName( followUser );
+        let userAvatar = scene.getObjectByName( "avatar" + followUser );
+
+        if ( userCameraHelper ) {
+            // Show it
+            userCameraHelper.visible = true;
+            userAvatar.visible = true;
+            socket.emit( 'unhide', userName, followUser );
+        }
+        followUser = user;
         // Add keyboard controls back
         controls.enabled = true;
+        
     }
 }
 
@@ -1557,7 +1576,7 @@ function createGUI( model, animations) {
     };
 
     listFollowUsers.on( "change", function( ev ){
-        handleFollowUser( ev.value ); 
+        handleFollowUser( ev.value );
     });
 
     // Check if there is a XR Session
@@ -1840,7 +1859,7 @@ socket.on( 'createCamera', function( msg ) {
     scene.add( cameraHelper );
 
     // Load an avatar
-    loadAvatar( 'glb/avatarVr.glb', userCamera );
+    loadAvatar( 'glb/avatarVr.glb', userCamera, msg );
     noXRCameraUpdate();
 });
 
@@ -1938,7 +1957,6 @@ socket.on( 'userConnected', function( msg ) {
         pointer.name = "pointer" + msg;
         pointer.visible = true;
         tempLine.add(pointer);
-        console.log(pointer)
 
         // Update XR UI 
         if (onlineUsersText !== null) {
@@ -1950,6 +1968,7 @@ socket.on( 'userConnected', function( msg ) {
 
 // Check existing users and add their cameras - only happens one time
 socket.once( 'checkWhosOnline', function( msg ){
+    console.log( 'There are ' + msg.length + ' users online' );
     // Add current user to the pane
     userFolder.addBlade({
         view: 'text',
@@ -1967,7 +1986,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             scene.add( userCamera );
             scene.add( cameraHelper );
             // Load an avatar
-            loadAvatar( 'glb/avatarVr.glb', userCamera );
+            loadAvatar( 'glb/avatarVr.glb', userCamera, msg[ k ] );
             
             // Add user into Follow Dropdown
             addFollowOption( msg[ k ], msg[ k ] );
@@ -2093,6 +2112,54 @@ socket.on( 'updateCamera', function( msg ){
     tempCameraHelper.camera.rotation.set( msg.lx, msg.ly, msg.lz );
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
+
+    if ( followUser === msg.userName ) {
+        camera.position.set( msg.x, msg.y, msg.z );
+        camera.rotation.set( msg.lx, msg.ly, msg.lz );
+    }
+});
+
+// Hide Camera
+socket.on( 'hide', function( user, byUser ){
+    if( byUser === userName ){
+        let userCameraHelper = scene.getObjectByName( user );
+        let userAvatar = scene.getObjectByName( "avatar" + user );
+        
+        if ( userCameraHelper ) {
+            // Hide it
+            userCameraHelper.visible = false;
+            userAvatar.visible = false;
+        }
+    }
+});
+
+// Show Camera
+socket.on( 'unhide', function( user, byUser ){
+    if( byUser === userName ){
+        let userCameraHelper = scene.getObjectByName( user );
+        let userAvatar = scene.getObjectByName( "avatar" + user );
+        
+        if ( userCameraHelper ) {
+            // Show it
+            userCameraHelper.visible = true;
+            userAvatar.visible = true;
+        }
+    }
+
+});
+
+// Get All users camera
+socket.on( 'getAllCamera', function( msg ) {
+    socket.emit( 'updateCamera', { 
+        userName: userName,
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z,
+        lx: camera.rotation.x,
+        ly: camera.rotation.y,
+        lz: camera.rotation.z 
+        } 
+    );
 });
 
 // On XR camera change
@@ -2100,7 +2167,7 @@ socket.on( 'updateXRCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     let mycamera = tempCameraHelper.camera;
     mycamera.position.copy( msg.pos );
-   let quaternion = new THREE.Quaternion( msg.rot[ 0 ], msg.rot[ 1 ], msg.rot[ 2 ], msg.rot[ 3 ] );
+    let quaternion = new THREE.Quaternion( msg.rot[ 0 ], msg.rot[ 1 ], msg.rot[ 2 ], msg.rot[ 3 ] );
     mycamera.quaternion.copy( quaternion );
     mycamera.updateProjectionMatrix();
     tempCameraHelper.update();
@@ -2240,15 +2307,6 @@ socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
         }
     }
 }); 
-
-// Follow camera User
-socket.on( 'cameraUserFollow', function( user, cameraPosition, cameraRotation ){ 
-    if( followUser !== "none" ){
-        camera.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-        camera.rotation.set(cameraRotation.x, cameraRotation.y, cameraRotation.z);
-    }
-
-});
 
 // Restart animation
 socket.on( 'restart', function( clip, loop ){
