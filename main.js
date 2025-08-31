@@ -280,7 +280,8 @@ function startXR( animations, model ) {
     miniScreen = new THREE.Mesh(miniScreenGeometry, miniScreenMaterial);
     miniScreen.name = "miniScreen";
     miniScreen.visible = false;
-
+    // Add to meshModels so users can also pick
+    meshModel.push(miniScreen)
     // Attach to controller
     controller2.add( miniScreen );
     miniScreen.position.set(0, 0.15, -0.1); // offset forward from controller
@@ -361,7 +362,6 @@ function startXR( animations, model ) {
                 const hitOffsetVec = new THREE.Vector3().subVectors( hitPoint, thumbWorldPos );
                 grabOffset = hitOffsetVec.dot( sliderXAxis ); // signed offset from center of thumb
             }  
-
         }
     });
 
@@ -523,8 +523,11 @@ function startXR( animations, model ) {
 
             if ( listFollowUsers.options[ followIndex ].value === "none" )
                 miniScreen.visible = false;
-            else
+            else {
                 miniScreen.visible = true;
+                socket.emit( 'getAllCamera', userName );
+            }
+                
 
 		}
 	});
@@ -983,6 +986,23 @@ function trackVRHeadset() {
     }
 }
 
+function pickFromMiniCamera( uv ) {
+  // uv = (0..1), convert to NDC (-1..1)
+  const ndc = new THREE.Vector2(
+    uv.x * 2 - 1,
+    uv.y * 2 - 1
+  );
+
+  const raycasterMini = new THREE.Raycaster();
+  raycasterMini.setFromCamera( ndc, followCamera );
+
+  const intersects = raycasterMini.intersectObjects( meshModel, true );
+  if (intersects.length > 0) {
+    return intersects[0].point;
+  } else 
+    return raycasterMini.ray.origin.clone().add(raycasterMini.ray.direction.clone().multiplyScalar(3));
+}
+
 // Function to create multiple colored slider animation thumbs on XR panel
 function createXRThumb( color, userName ) {
     // Create the thumb (movable)
@@ -1366,15 +1386,22 @@ function render() {
 
             const intersects = raycaster.intersectObjects( meshModel, true );
             let pointB;
+            let pointA = null;
 
             if ( intersects.length > 0 ) {
-                pointB = intersects[0].point.clone();
+                if ( intersects[0].object.name === "miniScreen"){
+                    const uv = intersects[ 0 ].uv; // normalized [0,1] coordinates on the plane
+                    pointB = pickFromMiniCamera( uv );
+                    pointA = followCamera.position.clone();
+                } else
+                    pointB = intersects[0].point.clone();
             } else {
                 pointB = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(3));
             }
 
             // Get Point A from camera position
-            let pointA = camera.position.clone();
+            if ( !pointA )
+                pointA = camera.position.clone();
 
             // Draw the local pointer
             let tempPointer = scene.getObjectByName( "pointer" + userName );
@@ -2104,7 +2131,8 @@ socket.once( 'checkWhosOnline', function( msg ){
 
 // Behavior when a user disconnects
 socket.on( 'userDisconnected', function( msg ) {
-    
+     const session = renderer.xr.getSession();
+
     console.log( msg + " has disconnected " );
     // remove user from list of follow
     removeFollowOption( msg );
@@ -2141,7 +2169,12 @@ socket.on( 'userDisconnected', function( msg ) {
         onlineUsersText.set( { content: arrayUsers.join(', ') } );
         removeXRThumb( msg );
     }
-
+    // Remove miniscreen that was being followed
+    if ( session && followUser === msg ) {
+        followUser = "none";
+        miniScreen.visible = false;
+    }
+        
     // Remove Line 
     let tempLine = scene.getObjectByName( "line" + msg );
     if( tempLine ){
@@ -2153,8 +2186,8 @@ socket.on( 'userDisconnected', function( msg ) {
 
 // On non XR camera change
 socket.on( 'updateCamera', function( msg ){
-    let session = renderer.xr.getSession();
-    console.log("here")
+    //let session = renderer.xr.getSession();
+
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     if( !tempCameraHelper ) 
         return;
@@ -2166,7 +2199,6 @@ socket.on( 'updateCamera', function( msg ){
     if ( followUser === msg.userName ) {
         followCamera.position.set( msg.x, msg.y, msg.z );
         followCamera.rotation.set( msg.lx, msg.ly, msg.lz );
-        console.log(followCamera.position)
     }
 });
 
