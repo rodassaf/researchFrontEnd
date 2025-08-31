@@ -30,6 +30,7 @@ var socket = io( "http://localhost:3000" , {
 // Global variables ***************************************************************
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+const followCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.02; // Pointer size in meters
@@ -1169,7 +1170,10 @@ function render() {
     }
 
     controls.update();
-    renderer.render( scene, camera );
+    if (followUser === "none")
+        renderer.render( scene, camera );
+    else
+        renderer.render( scene, followCamera );
 
     // Handle Raycaster for Line Pointer
     if ( isShiftDown === true && meshModel.length > 0 ) {
@@ -2105,6 +2109,8 @@ socket.on( 'userDisconnected', function( msg ) {
 
 // On non XR camera change
 socket.on( 'updateCamera', function( msg ){
+    let session = renderer.xr.getSession();
+
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     if( !tempCameraHelper ) 
         return;
@@ -2113,9 +2119,9 @@ socket.on( 'updateCamera', function( msg ){
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
 
-    if ( followUser === msg.userName ) {
-        camera.position.set( msg.x, msg.y, msg.z );
-        camera.rotation.set( msg.lx, msg.ly, msg.lz );
+    if ( followUser === msg.userName && !session ) {
+        followCamera.position.set( msg.x, msg.y, msg.z );
+        followCamera.rotation.set( msg.lx, msg.ly, msg.lz );
     }
 });
 
@@ -2166,11 +2172,20 @@ socket.on( 'getAllCamera', function( msg ) {
 socket.on( 'updateXRCamera', function( msg ){
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     let mycamera = tempCameraHelper.camera;
-    mycamera.position.copy( msg.pos );
+
+    mycamera.position.set(msg.pos.x, msg.pos.y, msg.pos.z);
+
     let quaternion = new THREE.Quaternion( msg.rot[ 0 ], msg.rot[ 1 ], msg.rot[ 2 ], msg.rot[ 3 ] );
     mycamera.quaternion.copy( quaternion );
+
     mycamera.updateProjectionMatrix();
     tempCameraHelper.update();
+
+    if ( followUser === msg.userName ) {
+        followCamera.position.set( msg.pos.x, msg.pos.y, msg.pos.z );
+        followCamera.quaternion.set( msg.rot[0], msg.rot[1], msg.rot[2], msg.rot[3] );
+        followCamera.updateProjectionMatrix();
+    }
 });  
 
 // On clip change
