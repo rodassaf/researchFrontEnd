@@ -31,6 +31,7 @@ var socket = io( "http://localhost:3000" , {
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const followCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+const miniRT = new THREE.WebGLRenderTarget(256, 256); // Mini render target for the follow camera XR Use Case
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.02; // Pointer size in meters
@@ -145,6 +146,7 @@ var morphChannelIndex = 0;
 var animationIndex = 0;
 let grabOffset = 0;
 var xrPointer = false;
+var miniScreen = null;
 let sliderXAxis = new THREE.Vector3();
 let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
@@ -268,6 +270,20 @@ function startXR( animations, model ) {
     controller2 = renderer.xr.getController( 0 );
     controller2.add( new THREE.Line( geometry ) );
     scene.add( controller2 );
+
+    // Create a mini scene and camera to be rendered on the controller
+    const miniScreenGeometry = new THREE.PlaneGeometry(0.2, 0.2); // small square
+    const miniScreenMaterial = new THREE.MeshBasicMaterial({
+        map: miniRT.texture,
+        side: THREE.DoubleSide
+    });
+    miniScreen = new THREE.Mesh(miniScreenGeometry, miniScreenMaterial);
+    miniScreen.name = "miniScreen";
+    miniScreen.visible = false;
+
+    // Attach to controller
+    controller2.add( miniScreen );
+    miniScreen.position.set(0, 0.15, -0.1); // offset forward from controller
 
 /*     // Fix controllers 
     session.addEventListener('inputsourceschange', () => {
@@ -503,6 +519,12 @@ function startXR( animations, model ) {
 		onSet: () => {
 
 		    followCurrentUsersText.set( { content: listFollowUsers.options[ followIndex ].value } );
+            followUser = listFollowUsers.options[ followIndex ].value;
+
+            if ( listFollowUsers.options[ followIndex ].value === "none" )
+                miniScreen.visible = false;
+            else
+                miniScreen.visible = true;
 
 		}
 	});
@@ -862,7 +884,7 @@ function startXR( animations, model ) {
 
     // Create Timeline UI
     // Load a glTF resource
-    loader.load(
+    /* loader.load(
         // resource URL
         'glb/timeline.glb',
         // called when the resource is loaded
@@ -883,7 +905,8 @@ function startXR( animations, model ) {
         function ( error ) {
             console.log( 'An error happened' );
         }
-    );
+    ); */
+
 } // End of initXR() 
 
 // Function to make XR buttons work
@@ -1157,7 +1180,7 @@ function render() {
             updateSliderValue( slider, sliderName );
 
             if ( session ) {
-                handle.morphTargetInfluences[ 0 ] = currentFrame/100;
+                //handle.morphTargetInfluences[ 0 ] = currentFrame/100;
             
                 // Update the thumb position
                 xrSliderThumb.position.x = -0.5 + ( currentFrame / ( action.getClip().duration * frameRate ) ) * 1.0;
@@ -1170,10 +1193,31 @@ function render() {
     }
 
     controls.update();
-    if (followUser === "none")
+
+    if( session ) {
+        // First, render scene from miniCamera into its texture
+        if ( followUser !== "none" ) {
+            
+            const wasXR = renderer.xr.enabled;
+            renderer.xr.enabled = false;
+
+            miniScreen.visible = false;
+            renderer.setRenderTarget( miniRT );
+            renderer.render( scene, followCamera );
+            renderer.setRenderTarget( null );
+            miniScreen.visible = true;
+
+            renderer.xr.enabled = wasXR; // restore XR
+        }
+
         renderer.render( scene, camera );
-    else
-        renderer.render( scene, followCamera );
+    } else {
+        if ( followUser === "none" )
+            renderer.render( scene, camera );
+        else 
+            renderer.render( scene, followCamera );
+    }
+   
 
     // Handle Raycaster for Line Pointer
     if ( isShiftDown === true && meshModel.length > 0 ) {
@@ -2110,7 +2154,7 @@ socket.on( 'userDisconnected', function( msg ) {
 // On non XR camera change
 socket.on( 'updateCamera', function( msg ){
     let session = renderer.xr.getSession();
-
+    console.log("here")
     let tempCameraHelper = scene.getObjectByName( msg.userName );
     if( !tempCameraHelper ) 
         return;
@@ -2119,9 +2163,10 @@ socket.on( 'updateCamera', function( msg ){
     tempCameraHelper.camera.updateProjectionMatrix();
     tempCameraHelper.update();
 
-    if ( followUser === msg.userName && !session ) {
+    if ( followUser === msg.userName ) {
         followCamera.position.set( msg.x, msg.y, msg.z );
         followCamera.rotation.set( msg.lx, msg.ly, msg.lz );
+        console.log(followCamera.position)
     }
 });
 
@@ -2597,7 +2642,7 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
             document.getElementById( "myTimeline" ).value = progress; // Update slider to match animation
 
             if( session ){        
-                handle.morphTargetInfluences[ 0 ] = progress/100;
+                //handle.morphTargetInfluences[ 0 ] = progress/100;
 
                 // Update the thumb position
                 xrSliderThumb.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
