@@ -589,7 +589,7 @@ function startXR( animations, model ) {
 		    morphCurrentText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } );
             // Emit change to server
             if( flags.isMorphSync === true )
-                socket.emit( 'onObjectMorphChange', morphFolder.children[ 0 ].options[ morphIndex ].value );
+                socket.emit( 'onObjectMorphChange', userName, morphFolder.children[ 0 ].options[ morphIndex ].value );
 
             // Update the morph target list of the current object
             // Clear NameTargets
@@ -1369,7 +1369,7 @@ function render() {
 
                 // Emit the value to the server
                 if ( morphOptionText !== null && morphOptionText.content !== 'none' ) {
-                    socket.emit( 'onSliderMorphChange', morphCurrentText.content, morphNameTargets.indexOf( morphOptionText.content ), normalized );
+                    socket.emit( 'onSliderMorphChange', userName, morphCurrentText.content, morphNameTargets.indexOf( morphOptionText.content ), normalized );
                     // Update the morph target influence on the mesh
                     scene.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] = normalized;
                 }
@@ -1443,7 +1443,8 @@ init();
 animate();
 
 // Emit Create Camera
-socket.emit( 'createCamera', userName );
+if (socket)
+    socket.emit( 'createCamera', userName );
 
 
 
@@ -1708,7 +1709,7 @@ function createGUI( model, animations) {
                         morphFolder.addBinding( flags, 'isMorphSync', { label: 'sync', });
                         // Emit change of the object to none
                         if( flags.isMorphSync == true )
-                            socket.emit( 'onObjectMorphChange', ev.value );
+                            socket.emit( 'onObjectMorphChange', userName, ev.value );
                         return;
                     }
                     // Clear NameTargets
@@ -1738,7 +1739,7 @@ function createGUI( model, animations) {
 
                     // Emit change of the object
                     if( flags.isMorphSync == true )
-                        socket.emit( 'onObjectMorphChange', ev.value );
+                        socket.emit( 'onObjectMorphChange', userName, ev.value );
                 } else {
 
                     if( ev.target.label === "sync" && ev.value == true ){
@@ -1752,7 +1753,7 @@ function createGUI( model, animations) {
                     if( ev.last !== true ){
                          // Emit Morph Target Slider Info
                         if( flags.isMorphSync == true ) 
-                            socket.emit( 'onSliderMorphChange', currentObjectSelection.morphObject, morphNameTargets.indexOf( ev.target.label ), ev.value );
+                            socket.emit( 'onSliderMorphChange', userName, currentObjectSelection.morphObject, morphNameTargets.indexOf( ev.target.label ), ev.value );
                     }
                 }
           });
@@ -1939,7 +1940,7 @@ socket.on( 'createCamera', function( msg ) {
 });
 
 // Behavior when receives morph target new values
-socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
+socket.on( 'onSliderMorphChange', function( user, object, morphTarget, value ) {
     if( flags.isMorphSync == true ){
         // Check if current Morph object is the same of the synced one
         if( currentObjectSelection.morphObject != object ){
@@ -1950,6 +1951,7 @@ socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
         if( sliderMorphs[ morphTarget ][ key ] !== value ){
             sliderMorphs[ morphTarget ][ key ] = value;
             pane.refresh();
+            document.getElementById("myBox").textContent = user + " changed morph";
         }
 
         //Update XR UI if it exists
@@ -1965,9 +1967,10 @@ socket.on( 'onSliderMorphChange', function( object, morphTarget, value ) {
 });
 
 // Behavior when receives object morph changes
-socket.on( 'onObjectMorphChange', function( value ) {
+socket.on( 'onObjectMorphChange', function( user, value ) {
     if( flags.isMorphSync == true ){
         morphFolder.children[0].controller.value.rawValue = value;
+        document.getElementById("myBox").textContent = user + " changed morph object";
         // Update XR UI if it exists
         if ( morphCurrentText !== null ){
             morphCurrentText.set( { content: value } );
@@ -1990,6 +1993,9 @@ socket.on( 'userConnected', function( msg ) {
         parse: ( v ) => String( v ),
         value: msg,
         });
+
+        // Update the status
+        document.getElementById("myBox").textContent = msg + " has connected";
 
          // Create Timeline Sliders and its attributes
         let slider = document.createElement( 'input' );
@@ -2078,6 +2084,9 @@ socket.once( 'checkWhosOnline', function( msg ){
             // Print the names on the slider
             document.getElementById( "sliderString" ).innerHTML = [...arrayUsers, 'me'].join('<br>');
 
+            // Update the status
+            document.getElementById("myBox").textContent = msg[ k ] + " is connected";
+
             // Update XR UI 
             if ( onlineUsersText !== null ) {
                 onlineUsersText.set( { content: arrayUsers.join(', ') } );
@@ -2131,12 +2140,15 @@ socket.once( 'checkWhosOnline', function( msg ){
 
 // Behavior when a user disconnects
 socket.on( 'userDisconnected', function( msg ) {
-     const session = renderer.xr.getSession();
+    const session = renderer.xr.getSession();
 
     console.log( msg + " has disconnected " );
     // remove user from list of follow
     removeFollowOption( msg );
     let tempCameraHelper = scene.getObjectByName( msg );
+
+    // Update Status
+    document.getElementById("myBox").textContent = msg + " disconnected";
 
     if( tempCameraHelper ){
         let tempCamera = tempCameraHelper.camera;
@@ -2204,9 +2216,12 @@ socket.on( 'updateCamera', function( msg ){
 
 // Hide Camera
 socket.on( 'hide', function( user, byUser ){
-    if( byUser === userName ){
+    if( byUser === userName ){      
         let userCameraHelper = scene.getObjectByName( user );
         let userAvatar = scene.getObjectByName( "avatar" + user );
+
+        // Update status
+        document.getElementById("myBox").textContent = user + " is following you";
         
         if ( userCameraHelper ) {
             // Hide it
@@ -2221,6 +2236,9 @@ socket.on( 'unhide', function( user, byUser ){
     if( byUser === userName ){
         let userCameraHelper = scene.getObjectByName( user );
         let userAvatar = scene.getObjectByName( "avatar" + user );
+
+        // Update status
+        document.getElementById("myBox").textContent = user + " unfollowed you";
         
         if ( userCameraHelper ) {
             // Show it
@@ -2269,6 +2287,9 @@ socket.on( 'updateXRCamera', function( msg ){
 socket.on( 'onClipChange', function( clip, sync, user ){
     // Check if there is a XR session
     const session = renderer.xr.getSession()
+
+    // Update Status
+    document.getElementById("myBox").textContent = user + " changed animation clip";
 
     // Update the UI
     if( flags.isAnimationSync == true && sync == true ){
@@ -2340,6 +2361,7 @@ socket.on( 'onClipChange', function( clip, sync, user ){
 socket.on( 'onLoopChange', function( value ){
     if( flags.isAnimationSync == true ) {
         animationFolder.children[ 1 ].controller.value.rawValue = value;
+        document.getElementById("myBox").textContent = "Someone changed loop";
         // Update XR UI if it exists
         if ( animationLoopText !== null )
             animationLoopText.set( { content: value ? 'Loop: ON' : 'Loop: OFF' } ); 
@@ -2347,9 +2369,11 @@ socket.on( 'onLoopChange', function( value ){
 }); 
 
 // Play animation
-socket.on( 'play', function( clip, time, loop ){
+socket.on( 'play', function( clip, time, loop, user){
     if( flags.isAnimationSync == true ){
-
+        // Update status
+        document.getElementById("myBox").textContent = user + " played animation";
+        
         if( animationClipObject.clip != clip )
             animationFolder.children[ 0 ].controller.value.rawValue = clip;
 
@@ -2377,7 +2401,9 @@ socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
     const session = renderer.xr.getSession()
 
     if( currentClip && clip.name == currentClip.name ){
-     
+        // Update status
+        document.getElementById("myBox").textContent = user + " played animation";
+
         // Get the sliders
         let slider = document.getElementById( "slider" + user.toString() );
         let sliderValue = document.getElementById( "sliderString" + user.toString() );
@@ -2655,6 +2681,9 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     // ReTell everyone what is the current status
     //socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
     const session = renderer.xr.getSession()
+    
+    // Update status
+    document.getElementById("myBox").textContent = user + " grabbing animation";
 
     if( flags.isAnimationSync == true && sync == true ){
         if( animationClipObject.clip != clip ) {
