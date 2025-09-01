@@ -1,6 +1,6 @@
 // vite.config.js
 export default {
   server: {
-    allowedHosts: ["upset-roses-fly.loca.lt"], // or your specific tunnel
+    allowedHosts: ["a9c357ff3212.ngrok-free.app"], // or your specific tunnel
   }
 };

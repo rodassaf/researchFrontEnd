@@ -275,13 +275,16 @@ function startXR( animations, model ) {
     const miniScreenGeometry = new THREE.PlaneGeometry(0.2, 0.2); // small square
     const miniScreenMaterial = new THREE.MeshBasicMaterial({
         map: miniRT.texture,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        transparent: true
     });
     miniScreen = new THREE.Mesh(miniScreenGeometry, miniScreenMaterial);
     miniScreen.name = "miniScreen";
     miniScreen.visible = false;
+
     // Add to meshModels so users can also pick
     meshModel.push(miniScreen)
+
     // Attach to controller
     controller2.add( miniScreen );
     miniScreen.position.set(0, 0.15, -0.1); // offset forward from controller
@@ -428,7 +431,7 @@ function startXR( animations, model ) {
         fontTexture: './assets/Roboto-msdf.png'
     });
     panel.name = 'xrUIPanel';
-    panel.position.set( 0, 1.5, -1.5 );
+    panel.position.set( -1.5, 1.5, 0 );
     
     scene.add( panel );
 
@@ -1221,13 +1224,17 @@ function render() {
             const wasXR = renderer.xr.enabled;
             renderer.xr.enabled = false;
 
-            miniScreen.visible = false;
-            renderer.setRenderTarget( miniRT );
-            renderer.render( scene, followCamera );
-            renderer.setRenderTarget( null );
-            miniScreen.visible = true;
+            // Avoid feedback loop
+            miniScreen.visible = false;         
 
-            renderer.xr.enabled = wasXR; // restore XR
+            const prevTarget = renderer.getRenderTarget();
+            renderer.setRenderTarget(miniRT);
+            renderer.clear();                      // if you rely on clear
+            renderer.render(scene, followCamera);
+            renderer.setRenderTarget(prevTarget);
+
+            miniScreen.visible = true;
+            renderer.xr.enabled = wasXR;
         }
 
         renderer.render( scene, camera );
