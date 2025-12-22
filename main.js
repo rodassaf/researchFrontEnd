@@ -1504,7 +1504,10 @@ function playPause() {
         // Emit play
         if( flags.isAnimationSync == true ) {
             socket.emit( 'play', animationClipObject.clip, action.time, animationFolder.children[ 1 ].controller.value.rawValue, userName );
-        } 
+        } else {
+            // This is just for getting the data on other users when not synced
+            socket.emit( 'AsyncPlay', userName );
+        }
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
@@ -1518,7 +1521,9 @@ function restart() {
     if ( action ){
         // Emit restart
         if( flags.isAnimationSync == true )
-            socket.emit( 'restart', animationClipObject.clip, animationFolder.children[ 1 ].controller.value.rawValue );
+            socket.emit( 'restart', animationClipObject.clip, animationFolder.children[ 1 ].controller.value.rawValue, userName );
+        else
+            socket.emit( 'AsyncRestart', userName );
         action.reset();
         action.play();
     }
@@ -1528,7 +1533,9 @@ function stop() {
     if ( action ){
         // Emit stop
         if( flags.isAnimationSync == true )
-            socket.emit( 'stop' );
+            socket.emit( 'stop', userName );
+        else
+            socket.emit( 'AsyncStop', userName );
         action.stop();
     }
 }
