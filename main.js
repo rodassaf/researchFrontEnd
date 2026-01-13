@@ -133,12 +133,14 @@ var morphCurrentText = null;
 var morphOptionText = null;
 var animationLoopText = null;
 var xrSliderThumb = null;
+var panelHandle = null;
 var xrFrameText = null;
 var xrAnimationSliderTrack = null;
 var xrMorpherSliderTrack = null;
 var xrSliderMorpherThumb = null;
 var xrMorpherValueText = null;
 var xrAnimationDragging = false;
+var panelDragging = false;
 var xrMorpherDragging = false;
 var followIndex = 0;
 var morphIndex = 0;
@@ -150,6 +152,14 @@ var miniScreen = null;
 let sliderXAxis = new THREE.Vector3();
 let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
+
+// Plane used for dragging hanlde in free space
+const dragPlane = new THREE.Plane();
+const hitPointWorld = new THREE.Vector3();
+const grabOffsetWorld = new THREE.Vector3();
+let dragDistance = 0; // distance along ray
+const prevCtrlPos = new THREE.Vector3();
+const currCtrlPos = new THREE.Vector3();
 const minX = -0.5;
 const maxX = 0.5;
 
@@ -320,9 +330,10 @@ function startXR( animations, model ) {
     controller1.addEventListener('selectstart', () => {
         selectState = true;
 
-        const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb ], true );
-
-        if ( intersections.length === 1 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
+        const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb, panelHandle ], true );
+        console.log(intersections);
+        //CHECK THISSSSS!!!! CONDITION IS WRONG!!!!
+        if ( intersections.length >= 1 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
            
             let hitObject = intersections[0].object.parent;
             if (!hitObject) return;
@@ -365,6 +376,31 @@ function startXR( animations, model ) {
                 const hitOffsetVec = new THREE.Vector3().subVectors( hitPoint, thumbWorldPos );
                 grabOffset = hitOffsetVec.dot( sliderXAxis ); // signed offset from center of thumb
             }  
+
+            if ( intersections[0].object.name === "UIPanelHandle" ) {
+                console.log("UIPanelHandle selected");
+                panelDragging = true;
+
+                var tmpMat4 = new THREE.Matrix4();
+
+                tmpMat4.identity().extractRotation(controller1.matrixWorld);
+                raycaster.ray.origin.setFromMatrixPosition(controller1.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMat4).normalize();
+
+                const hits = raycaster.intersectObject( panelHandle, true );
+                if ( !hits.length ) return;
+
+                hitPointWorld.copy(hits[0].point);
+
+                 // Offset so it doesn't snap
+                panelHandle.getWorldPosition(grabOffsetWorld).sub(hitPointWorld);
+
+                // Initial distance along the ray
+                dragDistance = raycaster.ray.origin.distanceTo(hitPointWorld);
+
+                // Track controller movement
+                prevCtrlPos.setFromMatrixPosition(controller1.matrixWorld);
+            } 
         }
     });
 
@@ -372,6 +408,7 @@ function startXR( animations, model ) {
         selectState = false;
         xrAnimationDragging = false;
         xrMorpherDragging = false;
+        panelDragging = false;
     }); 
 
     controller1.addEventListener('squeezestart', () => {
@@ -431,9 +468,20 @@ function startXR( animations, model ) {
         fontTexture: './assets/Roboto-msdf.png'
     });
     panel.name = 'xrUIPanel';
-    panel.position.set( -1.5, 1.5, 0 );
-    
-    scene.add( panel );
+
+    // sphere "handle"
+    const handleGeom = new THREE.SphereGeometry(0.06, 24, 16);
+    const handleMat  = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    panelHandle = new THREE.Mesh(handleGeom, handleMat);
+    panelHandle.name = "UIPanelHandle";
+
+    // Put it "under" the panel in local space (tune these)
+    panelHandle.position.set(-1.5, 0, 0);
+
+    // handle becomes parent of the panel
+    scene.add( panelHandle );
+    panelHandle.add( panel );
+    panel.position.set( 0, 1.6, 0 );
 
     // Helper to create a label row
     function addLabelRow( text ) {
@@ -1381,6 +1429,35 @@ function render() {
                     scene.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] = normalized;
                 }
             }
+        }
+
+        if ( panelDragging ) {
+            console.log("Dragging Panel");
+            //const raycaster = new THREE.Raycaster();
+            var tmpMat4 = new THREE.Matrix4();
+
+            // Controller movement since last frame
+            currCtrlPos.setFromMatrixPosition(controller1.matrixWorld);
+            const ctrlDelta = currCtrlPos.clone().sub(prevCtrlPos);
+            
+            tmpMat4.identity().extractRotation( controller1.matrixWorld );
+            raycaster.ray.origin.setFromMatrixPosition( controller1.matrixWorld );
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4( tmpMat4 );
+
+            // Project controller movement onto the ray to change distance (forward/back)
+            const deltaAlongRay = ctrlDelta.dot(raycaster.ray.direction);
+            dragDistance = Math.max(0.05, dragDistance + deltaAlongRay); // clamp so it can't go "behind" controller
+
+            prevCtrlPos.copy(currCtrlPos);
+
+            // Desired point along ray + offset
+            const desiredWorld = raycaster.ray.origin
+                .clone()
+                .add(raycaster.ray.direction.clone().multiplyScalar(dragDistance))
+                .add(grabOffsetWorld);
+
+            // Move handle (and therefore the panel)
+            panelHandle.position.copy( desiredWorld );
         }
 
         if ( xrPointer ) {
