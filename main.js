@@ -186,7 +186,9 @@ const loader = new GLTFLoader();
 
 // Start 3D scene *****************************************************************
 function init() { 
-    scene.background = new THREE.Color( 0x444444 );
+    scene.background = new THREE.Color( 0xa0a0a0 );
+	scene.fog = new THREE.Fog( 0xa0a0a0, 10, 30 );
+
     renderer.setPixelRatio( window.devicePixelRatio );
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.xr.enabled = true;
@@ -199,6 +201,17 @@ function init() {
     const dirLight = new THREE.DirectionalLight( 0xffffff, 3 );
     dirLight.position.set( 0, 20, 10 );
     scene.add( dirLight );
+
+    // ground
+    let mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+    mesh.rotation.x = - Math.PI / 2;
+    mesh.receiveShadow = true;
+    scene.add( mesh );
+
+    let grid = new THREE.GridHelper( 2000, 3290, 0x000000, 0x000000 );
+    grid.material.opacity = 0.1;
+    grid.material.transparent = true;
+    scene.add( grid );
 
     // Create a clock
     clock = new THREE.Clock();
