@@ -154,12 +154,17 @@ let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
 
 // Plane used for dragging hanlde in free space
-const dragPlane = new THREE.Plane();
 const hitPointWorld = new THREE.Vector3();
 const grabOffsetWorld = new THREE.Vector3();
 let dragDistance = 0; // distance along ray
 const prevCtrlPos = new THREE.Vector3();
 const currCtrlPos = new THREE.Vector3();
+
+// Face to camera variables
+const camPos = new THREE.Vector3();
+const handlePos = new THREE.Vector3();
+const lookDir = new THREE.Vector3();
+
 const minX = -0.5;
 const maxX = 0.5;
 
@@ -1458,6 +1463,17 @@ function render() {
 
             // Move handle (and therefore the panel)
             panelHandle.position.copy( desiredWorld );
+
+            //Face to Camera
+            let xrCam = renderer.xr.getCamera( camera );
+            xrCam.getWorldPosition( camPos );
+            panelHandle.getWorldPosition( handlePos );
+
+            lookDir.subVectors( camPos, handlePos );
+            lookDir.y = 0;
+            lookDir.normalize();
+
+            panelHandle.lookAt( handlePos.clone().add(lookDir) );
         }
 
         if ( xrPointer ) {
