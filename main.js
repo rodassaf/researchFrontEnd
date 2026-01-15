@@ -126,7 +126,11 @@ var objsToTest = [];
 // Raycaster 
 var raycaster;
 
+// Following me
+var userFollowingMe = "none";
+
 // XR UI 
+var panel = null;
 var onlineUsersText = null;
 var animationCurrentText = null;
 var morphCurrentText = null;
@@ -152,6 +156,9 @@ var miniScreen = null;
 let sliderXAxis = new THREE.Vector3();
 let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
+
+// I am using this just to grab the label and change its color when someone follows me in VR mode
+var tempFollowLabel = null;
 
 // Plane used for dragging hanlde in free space
 const hitPointWorld = new THREE.Vector3();
@@ -349,15 +356,13 @@ function startXR( animations, model ) {
         selectState = true;
 
         const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb, panelHandle ], true );
-        console.log(intersections);
-        //CHECK THISSSSS!!!! CONDITION IS WRONG!!!!
+    
         if ( intersections.length >= 1 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
            
             let hitObject = intersections[0].object.parent;
             if (!hitObject) return;
 
             // We have a thumb hit; get its id and the hit point
-            console.log(hitObject)
             const hitPoint = intersections[0].point.clone();
 
              if ( hitObject.userData.sliderId === 'xrSliderThumb' ) {
@@ -395,7 +400,8 @@ function startXR( animations, model ) {
                 grabOffset = hitOffsetVec.dot( sliderXAxis ); // signed offset from center of thumb
             }  
 
-            if ( intersections[0].object.name === "UIPanelHandle" ) {
+            if ( intersections[0].object === panelHandle && intersections.length === 1 ) {
+                //console.log(intersections[0]);
                 console.log("UIPanelHandle selected");
                 panelDragging = true;
 
@@ -472,7 +478,7 @@ function startXR( animations, model ) {
     }
 
     // Create the main panel
-    const panel = new ThreeMeshUI.Block({
+    panel = new ThreeMeshUI.Block({
         width: 1.2,
         height: 2.9,
         padding: 0.05,
@@ -492,6 +498,7 @@ function startXR( animations, model ) {
     const handleMat  = new THREE.MeshStandardMaterial({ color: 0xffffff });
     panelHandle = new THREE.Mesh(handleGeom, handleMat);
     panelHandle.name = "UIPanelHandle";
+    panelHandle.userData.title = "UIPanelHandle";
 
     // Put it "under" the panel in local space (tune these)
     panelHandle.position.set(-1.5, 0, 0);
@@ -505,6 +512,10 @@ function startXR( animations, model ) {
     function addLabelRow( text ) {
         const row = new ThreeMeshUI.Block({ width: 1.1, height: 0.08, margin: 0.01, padding: 0.01, backgroundOpacity: 1, borderRadius: 0.03, backgroundColor: new THREE.Color(0x777777) });
         row.add( new ThreeMeshUI.Text({ content: text }) );
+        if ( text === 'Follow User:' ) {
+            tempFollowLabel = row;
+            row.name = "FollowUserLabel";
+        }    
         panel.add( row );
         return row;
     }
@@ -590,11 +601,13 @@ function startXR( animations, model ) {
 		    followCurrentUsersText.set( { content: listFollowUsers.options[ followIndex ].value } );
             followUser = listFollowUsers.options[ followIndex ].value;
 
-            if ( listFollowUsers.options[ followIndex ].value === "none" )
+            if ( listFollowUsers.options[ followIndex ].value === "none" ) {
                 miniScreen.visible = false;
-            else {
+                socket.emit( 'follow', userName, "none" );  
+            } else {
                 miniScreen.visible = true;
                 socket.emit( 'getAllCamera', userName );
+                socket.emit( 'follow', userName, followUser );  
             }
                 
 
@@ -1703,17 +1716,19 @@ function handleFollowUser( user ) {
         controls.enabled = false;
         let userCameraHelper = scene.getObjectByName( user );
         let userAvatar = scene.getObjectByName( "avatar" + user );
+        socket.emit( 'follow', userName, user );  
         
         if ( userCameraHelper ) {
             // Hide it
             userCameraHelper.visible = false;
             userAvatar.visible = false;
             socket.emit( 'hide', userName, user );
-            socket.emit( 'getAllCamera', userName );
+            socket.emit( 'getAllCamera', userName );   
         }
     } else {
         let userCameraHelper = scene.getObjectByName( followUser );
         let userAvatar = scene.getObjectByName( "avatar" + followUser );
+        socket.emit( 'follow', userName, 'none' );  
 
         if ( userCameraHelper ) {
             // Show it
@@ -2381,6 +2396,24 @@ socket.on( 'getAllCamera', function( msg ) {
         lz: camera.rotation.z 
         } 
     );
+});
+
+// Follow user
+socket.on( 'follow', function( user, followUserName ){
+    console.log(user + " is following " + followUserName );
+    if ( followUserName === "none" && userFollowingMe !== "none"  && tempFollowLabel ) {
+        tempFollowLabel.set({ backgroundColor: new THREE.Color(0x777777).toArray() });
+        tempFollowLabel.childrenTexts[0].set({ content: "Follow User:" });
+        userFollowingMe = "none";
+        return;
+    }
+
+    if ( followUserName === userName && tempFollowLabel ) {
+        tempFollowLabel.set({ backgroundColor: new THREE.Color(0xff0000).toArray() });
+        tempFollowLabel.childrenTexts[0].set({ content: user + " is following you" });
+       // tempFollowLabel.text = user + " is following you";
+        userFollowingMe = user;
+    }
 });
 
 // On XR camera change
