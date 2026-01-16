@@ -1340,6 +1340,10 @@ function render() {
         }
         // Get Point A from camera position
         let pointA = camera.position.clone();
+        // Adjust pointA a bit forward
+        pointA.y -= 0.15;
+        pointA.x += 0.05;
+        
 
         // Draw the local pointer
         let tempPointer = scene.getObjectByName( "pointer" + userName );
