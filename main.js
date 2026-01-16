@@ -1328,7 +1328,11 @@ function render() {
     // Handle Raycaster for Line Pointer
     if ( isShiftDown === true && meshModel.length > 0 ) {
         // Update the picking ray with the camera and mouse position
-        raycaster.setFromCamera( mouse, camera );
+        if ( followUser !== "none" ) {
+            raycaster.setFromCamera( mouse, followCamera );
+        } else {
+            raycaster.setFromCamera( mouse, camera );
+        }
         // Get Point B from raycaster intersection
         let pointB;
         const intersects = raycaster.intersectObjects( meshModel, true );
@@ -1339,7 +1343,12 @@ function render() {
             pointB = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(3));
         }
         // Get Point A from camera position
-        let pointA = camera.position.clone();
+        let pointA;
+        if ( followUser !== "none" ) {
+            pointA = followCamera.position.clone();
+        } else {
+            pointA = camera.position.clone();
+        }
         // Adjust pointA a bit forward
         pointA.y -= 0.15;
         pointA.x += 0.05;
