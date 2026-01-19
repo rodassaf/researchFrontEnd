@@ -45,6 +45,14 @@ var flags = {
     isAnimationSync: true
 };
 
+// Synced Object States
+var syncStates = {
+    clip: 'none',
+    frame: 0,
+    isPlaying: false,
+    isLooping: false
+};
+
 // Group to hold Interactable objects
 var interactiveGroup;
 
@@ -908,7 +916,7 @@ function startXR( animations, model ) {
             animationLoopText.set( { content: animationLoop.loop ? 'Loop: ON' : 'Loop: OFF' } );
 
 		    if( flags.isAnimationSync === true ) {
-                socket.emit( 'onLoopChange', animationLoop.loop ); 
+                socket.emit( 'onLoopChange', animationLoop.loop, flags.isAnimationSync ); 
                 if( action )
                     action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
             }
@@ -1276,7 +1284,7 @@ function render() {
             //let progress = ( action.time / currentClip.duration ) * 100;
             let currentFrame = Math.round( action.time * frameRate );
             slider.value = currentFrame; // Update slider to match animation
-            socket.emit( 'timelineUserFollow', userName, currentFrame, currentClip );
+            socket.emit( 'timelineUserFollow', userName, currentFrame, currentClip, flags.isAnimationSync );
             updateFrameNumber();
             // Update my slider user name (me)
             updateSliderValue( slider, sliderName );
@@ -1643,17 +1651,35 @@ function playPause() {
         if( action.isRunning() !== true ) {
             action.paused = false;
             action.play();
+            if ( flags.isAnimationSync == true ) {
+                // Save sync states
+                syncStates.clip = animationClipObject.clip;
+                syncStates.frame = Math.round( action.time * frameRate );
+                syncStates.isPlaying = true;
+            }
         }
-        else
+        else{
             action.paused = true;
+            if ( flags.isAnimationSync == true ) {
+                // Save sync states
+                syncStates.clip = animationClipObject.clip;
+                syncStates.frame = Math.round( action.time * frameRate );
+                syncStates.isPlaying = false;
+            }
+        }
     } 
 }
 
 function restart() {
     if ( action ){
         // Emit restart
-        if( flags.isAnimationSync == true )
+        if( flags.isAnimationSync == true ) {
             socket.emit( 'restart', animationClipObject.clip, animationFolder.children[ 1 ].controller.value.rawValue, userName );
+            // Save sync states
+            syncStates.clip = animationClipObject.clip;
+            syncStates.frame = 0;
+            syncStates.isPlaying = true;
+        }
         else
             socket.emit( 'AsyncRestart', userName );
         action.reset();
@@ -1664,8 +1690,13 @@ function restart() {
 function stop() {
     if ( action ){
         // Emit stop
-        if( flags.isAnimationSync == true )
-            socket.emit( 'stop', userName );
+        if( flags.isAnimationSync == true ) {
+            socket.emit( 'stop', userName, flags.isAnimationSync );
+            // Save sync states
+            syncStates.clip = animationClipObject.clip;
+            syncStates.frame = Math.round( action.time * frameRate );
+            syncStates.isPlaying = false;
+        }
         else
             socket.emit( 'AsyncStop', userName );
         action.stop();
@@ -1693,6 +1724,13 @@ slider.addEventListener( "input", ( event ) => {
         // Emit value
         socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
 
+        // Save sync states
+        if ( flags.isAnimationSync == true ) {
+            syncStates.clip = animationFolder.children[ 0 ].controller.value.rawValue;
+            syncStates.frame = progress;
+            syncStates.isPlaying = false;
+        }
+
         if( arrayUsers.length > 0 && flags.isAnimationSync ){
             for( let i=0; i<arrayUsers.length; i++ ){
                 
@@ -1709,6 +1747,8 @@ slider.addEventListener( "input", ( event ) => {
 
     } else {
         updateSliderValue( slider, sliderName );
+        updateFrameNumber();
+        socket.emit( 'grabbing', slider.value, slider.value, flags.isAnimationSync, userName, "none" );
     }
 });
 
@@ -1936,6 +1976,13 @@ function createGUI( model, animations) {
         animationFolder.on( 'change', function( ev ) {  
 
             if( ev.target.label === "clip" && ev.value !== "none" ){
+                if (flags.isAnimationSync == true ) {
+                      syncStates.clip = ev.value;
+                      syncStates.frame = 0;
+                }
+                  
+                console.log("END222")
+
                 // Emit change of the clip
                 // if( flags.isAnimationSync == true )
                 socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName );                        
@@ -1957,6 +2004,12 @@ function createGUI( model, animations) {
             }
 
             if( ev.target.label === "clip" && ev.value === "none" ){
+                console.log("END")
+                if (flags.isAnimationSync == true ) {
+                    console.log(ev.value)
+                      syncStates.clip = ev.value;
+                      syncStates.frame = 0;
+                }
                 // Emit change of the clip
               //  if( flags.isAnimationSync == true )
                 socket.emit( 'onClipChange', ev.value, flags.isAnimationSync, userName ); 
@@ -1968,13 +2021,13 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "loop" && action ){
                 if( flags.isAnimationSync == true )
-                    socket.emit( 'onLoopChange', ev.value ); 
+                    socket.emit( 'onLoopChange', ev.value, flags.isAnimationSync ); 
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
             }
 
             if( ev.target.label === "loop" && action == null ){
                 if( flags.isAnimationSync == true )
-                    socket.emit( 'onLoopChange', ev.value ); 
+                    socket.emit( 'onLoopChange', ev.value, flags.isAnimationSync ); 
             }
 
             if( ev.target.label === "sync" && ev.value == true){
@@ -1983,6 +2036,45 @@ function createGUI( model, animations) {
                 }
 
                 socket.emit( 'addSyncUser', userName, currentClip ); 
+
+                // Update the Sync state into this user
+                // update clip
+                let tempFrame = syncStates.frame;
+
+                // update islooping
+                animationFolder.children[ 1 ].controller.value.rawValue = syncStates.isLooping;
+
+                if( animationClipObject.clip != syncStates.clip ) {
+                    console.log( syncStates.clip );
+                    if (typeof syncStates.clip === 'string' ) 
+                        animationFolder.children[ 0 ].controller.value.rawValue = syncStates.clip;
+                    else
+                        animationFolder.children[ 0 ].controller.value.rawValue = syncStates.clip.name;
+                    console.log("START")
+                    if ( session )
+                        animationCurrentText.set( { content: syncStates.clip } );
+                }  
+                // update frame action.time (DO FOR XR SESSION)
+                if ( action ) {
+                    if (typeof syncStates.clip === 'string' )
+                        action = mixer.clipAction( THREE.AnimationClip.findByName( animations, syncStates.clip ) );
+                    else
+                        action = mixer.clipAction( THREE.AnimationClip.findByName( animations, syncStates.clip.name ) );
+                    let frameTime = (tempFrame / frameRate);
+                    console.log( frameTime );
+                    console.log(action)
+                    action.time = frameTime;
+                    mixer.update( 0 ); // Apply the new time
+                    action.play();
+                    action.paused = true;
+                }
+                // update frame slider (DO FOR XR SESSION)
+                if ( document.getElementById( "myTimeline" ).value != tempFrame ) {
+                    document.getElementById( "myTimeline" ).value = tempFrame;
+                    updateFrameNumber();
+                    updateSliderValue( slider, sliderName );
+                }
+
 
                 if ( arrayUsers.length > 0 && flags.isAnimationSync ){
                     for( const user of arrayUsers ){
@@ -2454,6 +2546,13 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     // Check if there is a XR session
     const session = renderer.xr.getSession()
 
+    // update global sync states
+    if ( sync == true ) {
+        syncStates.clip = clip;
+        syncStates.frame = 0;
+        syncStates.isPlaying = false;
+    }
+
     // Update Status
     document.getElementById("myBox").textContent = user + " changed animation clip";
 
@@ -2524,7 +2623,13 @@ socket.on( 'onClipChange', function( clip, sync, user ){
 }); 
 
 // On loop change
-socket.on( 'onLoopChange', function( value ){
+socket.on( 'onLoopChange', function( value, sync ){
+
+    // Update Status
+    if ( sync == true ) {
+        syncStates.isLooping = value;
+    }
+
     if( flags.isAnimationSync == true ) {
         animationFolder.children[ 1 ].controller.value.rawValue = value;
         document.getElementById("myBox").textContent = "Someone changed loop";
@@ -2562,9 +2667,15 @@ socket.on( 'play', function( clip, time, loop, user){
 }); 
 
 // Play animation of a follow user
-socket.on( 'timelineUserFollow', function( user, currentFrame, clip ){
+socket.on( 'timelineUserFollow', function( user, currentFrame, clip, sync ){
     // Check if there is a XR session
     const session = renderer.xr.getSession()
+
+    if ( sync == true ) {
+        syncStates.clip = clip;
+        syncStates.frame = currentFrame;
+        syncStates.isPlaying = true;
+    }
 
     if( currentClip && clip.name == currentClip.name ){
         // Update status
@@ -2609,7 +2720,7 @@ socket.on( 'restart', function( clip, loop ){
 }); 
 
 // Stop animation
-socket.on( 'stop', function(){
+socket.on( 'stop', function( sync ){
     if( flags.isAnimationSync == true ){
         if( action )
             action.stop();
@@ -2682,8 +2793,6 @@ socket.on( 'askClip', function( clip, user, sync ){
                     slider.visible = true;
             }
         }
-
-
         
         // Prepare the Timeline
         let userFollowSlider = document.getElementById( "slider" + user.toString() );
@@ -2717,18 +2826,18 @@ socket.on( 'askClip', function( clip, user, sync ){
 
 // Add Sync User
 socket.on( 'addSyncUser', function( user, clip ){
-
+    arrayUsers.push( user );
     // Check if there is a XR session
     const session = renderer.xr.getSession()
+    if (action)
+        action.paused = true;
 
-    if( currentClip && clip && clip.name == currentClip.name ) {
-        arrayUsers.push( user );
-
+    if( (currentClip && clip && clip.name == currentClip.name) || !clip ) {
         if( flags.isAnimationSync ) {
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
             // Hide the thumb on XR too
-            if (session) {
+            if ( session ) {
                 let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
                 let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
                 if ( thumbToHide ) {
@@ -2746,7 +2855,7 @@ socket.on( 'addSyncUser', function( user, clip ){
                     document.getElementById( "slider" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
                     document.getElementById( "sliderString" + arrayUsers[ i ].toString() ).style.visibility = "hidden";
                     // Hide the thumb on XR too
-                    if (session) {
+                    if ( session ) {
                         let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[ i ].toString() );
                         let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + arrayUsers[ i ].toString() );
                         if ( thumbToHide ) {
@@ -2758,6 +2867,22 @@ socket.on( 'addSyncUser', function( user, clip ){
                 }
             }
         }
+    } else {
+        if( flags.isAnimationSync ) {
+            document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+            document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+            // Hide the thumb on XR too
+            if ( session ) {
+                let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
+                if ( thumbToHide ) {
+                    thumbToHide.visible = false;
+                    labelToHide.visible = false;
+                }
+            }
+            // Print the names on the slider
+            document.getElementById( "sliderString" ).innerHTML = [ ...arrayUsers, "me" ].join( '<br>' );
+        } 
     }
 });
 
@@ -2768,15 +2893,15 @@ socket.on( 'removeSyncUser', function( user, clip ){
 
     // Remove user from list of users synced if he/she is there
     const index = arrayUsers.indexOf( user );
-    if( index !== -1 ) 
+    if ( index !== -1 ) 
         arrayUsers.splice( index, 1 );
 
-    if( currentClip && clip && clip.name == currentClip.name ) {
+    if ( (currentClip && clip && clip.name == currentClip.name ) || !clip ) {
         document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
         document.getElementById( "sliderString" + user.toString() ).innerHTML = user.toString();
-       // document.getElementById( "slider" + user.toString() ).value = slider.value;
-       // updateSliderValue( document.getElementById( "slider" + user.toString() ), document.getElementById( "sliderString" + user.toString() ) ); 
+        document.getElementById( "slider" + user.toString() ).value = slider.value;
+        updateSliderValue( document.getElementById( "slider" + user.toString() ), document.getElementById( "sliderString" + user.toString() ) ); 
         // Show the thumb on XR too
         if (session) {
             let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
@@ -2786,9 +2911,8 @@ socket.on( 'removeSyncUser', function( user, clip ){
                 labelToShow.visible = true;
             }
         }
-
     }
-    else{
+    else {
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
         // Hide the thumb on XR too
@@ -2847,9 +2971,27 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     // ReTell everyone what is the current status
     //socket.emit( 'askSync', userName, flags.isAnimationSync, progress );
     const session = renderer.xr.getSession()
-    
+    // Save sync states
+    if ( sync == true ) { 
+        syncStates.clip = clip;
+        syncStates.frame = progress;
+        syncStates.isPlaying = false;
+    }
+
     // Update status
     document.getElementById("myBox").textContent = user + " grabbing animation";
+
+    if ( clip == "none" ) {
+        if (sync == true ) {
+            syncStates.clip = "none";
+            syncStates.frame = value;
+            if (flags.isAnimationSync ) {
+                slider.value = value;
+                updateSliderValue( slider, sliderName );
+                updateFrameNumber();
+            }
+        }
+    }
 
     if( flags.isAnimationSync == true && sync == true ){
         if( animationClipObject.clip != clip ) {
@@ -2897,7 +3039,7 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
         }
     }
 
-    if( currentClip && clip && clip == currentClip.name ){
+    if( (currentClip && clip && clip == currentClip.name) || (clip == "none" && currentClip == null) ){
         
          // Get the sliders from others
          let sliderTemp = document.getElementById( "slider" + user.toString() );
@@ -2918,7 +3060,6 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
         }
 
         if( arrayUsers.length > 1 ){
-            
             for( let i=0; i<arrayUsers.length; i++ ){
                 
                 // Get the sliders from others
