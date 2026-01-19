@@ -10,7 +10,7 @@ import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFa
 
 import RightAxisWatcher from "./rightAxisWatcher";
 import LeftAxisWatcher from "./LeftAxisWatcher";
-import { temp, userData } from "three/tsl";
+import { array, temp, userData } from "three/tsl";
 
 var userName = prompt( "Please enter your name" );
 userName = userName.toString();
@@ -877,17 +877,47 @@ function startXR( animations, model ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
-
+            console.log("ENTROU0")
 		    flags.isAnimationSync = !flags.isAnimationSync;
             animationSyncText.set( { content: flags.isAnimationSync ? 'Sync: ON' : 'Sync: OFF' } );
 
             if ( action ) 
                 action.paused = true;
            
-            if( flags.isAnimationSync === true ) 
-                socket.emit( 'addSyncUser', userName, currentClip ); 
-            else
+            if( flags.isAnimationSync === true ) {
+                socket.emit( 'addSyncUser', userName, currentClip );
+                if ( arrayUsers.length > 0 ) {
+                    let thumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[0].toString() );
+                    xrSliderThumb.position.x = thumb.position.x;
+                    xrFrameText.set( { content: syncStates.frame.toString().padStart(4, '0') } );
+                }
+            } else {
                 socket.emit( 'removeSyncUser', userName, currentClip );
+            }
+
+            if ( arrayUsers.length > 0 ) {
+                console.log("ENTROU")
+                for( const user of arrayUsers ){
+                    console.log("ENTROU2")
+                    // Hide the thumb on XR too
+                    let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
+                    let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
+
+                    if ( thumbToHide ) {
+                        thumbToHide.position.x = xrSliderThumb.position.x;
+                        labelToHide.position.x = xrSliderThumb.position.x;
+                    }
+
+                    if ( thumbToHide && !flags.isAnimationSync ) {
+                        thumbToHide.visible = true;
+                        labelToHide.visible = true;
+                    }
+                    if ( thumbToHide && flags.isAnimationSync ) {
+                        thumbToHide.visible = false;
+                        labelToHide.visible = false;
+                    }
+                }
+            }
 
 		}
 	});
@@ -1415,17 +1445,17 @@ function render() {
         // Handle XR Animation Slider when dragging
         if ( xrAnimationDragging ) {
             console.log("Dragging Animation Slider");
-            const rayOrigin = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+            const rayOrigin = new THREE.Vector3().setFromMatrixPosition( controller1.matrixWorld );
             const rayDir = new THREE.Vector3(0, 0, -1)
-                .applyMatrix4(new THREE.Matrix4().extractRotation(controller1.matrixWorld))
+                .applyMatrix4( new THREE.Matrix4().extractRotation( controller1.matrixWorld ) )
                 .normalize();
 
-            const ray = new THREE.Ray(rayOrigin, rayDir);
-            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(sliderNormal, sliderCenter);
+            const ray = new THREE.Ray( rayOrigin, rayDir );
+            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint( sliderNormal, sliderCenter );
             const intersectPoint = new THREE.Vector3(); 
 
             if ( ray.intersectPlane( sliderPlane, intersectPoint ) ) {
-                const dragVec = new THREE.Vector3().subVectors(intersectPoint, sliderCenter);
+                const dragVec = new THREE.Vector3().subVectors( intersectPoint, sliderCenter );
                 let projectedX = dragVec.dot( sliderXAxis ) - grabOffset;
 
                 projectedX = THREE.MathUtils.clamp( projectedX, minX, maxX );
@@ -1437,8 +1467,12 @@ function render() {
                     action.paused = true;
 
                     // Calculate and store normalized slider value
-                    const normalized = (projectedX - minX) / (maxX - minX);
+                    const normalized = (projectedX - minX) / ( maxX - minX );
                     const frame = Math.round( normalized * ( action.getClip().duration * frameRate ) );
+                    
+                    if(flags.isAnimationSync)
+                        syncStates.frame = frame;
+
                     slider.value = frame; // Update slider to match animation
 
                     const currentFrame = parseInt( frame );
@@ -1449,7 +1483,15 @@ function render() {
                     let progress = Math.round( action.time * frameRate );
                     // Emit value
                     socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
-                } 
+                } else {
+                    // Calculate and store normalized slider value
+                    const normalized = (projectedX - minX) / ( maxX - minX );
+                    const frame = Math.round( normalized * ( slider.max - slider.min ) ) + parseInt( slider.min );
+                    slider.value = frame;
+                    socket.emit( 'grabbing', frame, frame, flags.isAnimationSync, userName, "none" );
+                    updateFrameNumber();
+                }
+                
             }
         }
 
@@ -1980,8 +2022,6 @@ function createGUI( model, animations) {
                       syncStates.clip = ev.value;
                       syncStates.frame = 0;
                 }
-                  
-                console.log("END222")
 
                 // Emit change of the clip
                 // if( flags.isAnimationSync == true )
@@ -2004,7 +2044,6 @@ function createGUI( model, animations) {
             }
 
             if( ev.target.label === "clip" && ev.value === "none" ){
-                console.log("END")
                 if (flags.isAnimationSync == true ) {
                     console.log(ev.value)
                       syncStates.clip = ev.value;
@@ -2034,7 +2073,6 @@ function createGUI( model, animations) {
                 if ( action ) {
                     action.paused = true;
                 }
-
                 socket.emit( 'addSyncUser', userName, currentClip ); 
 
                 // Update the Sync state into this user
@@ -2050,7 +2088,7 @@ function createGUI( model, animations) {
                         animationFolder.children[ 0 ].controller.value.rawValue = syncStates.clip;
                     else
                         animationFolder.children[ 0 ].controller.value.rawValue = syncStates.clip.name;
-                    console.log("START")
+            
                     if ( session )
                         animationCurrentText.set( { content: syncStates.clip } );
                 }  
@@ -2990,6 +3028,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
                 updateSliderValue( slider, sliderName );
                 updateFrameNumber();
             }
+            if (session) {
+                // Update the thumb position
+                xrSliderThumb.position.x = value / 100 - 0.5;
+            }
         }
     }
 
@@ -3052,7 +3094,10 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
         if ( session ) {
             let slider = scene.getObjectByName( "xrSliderThumb" + user.toString() );
             if( slider )
-                slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+                if ( action )
+                    slider.position.x = -0.5 + ( progress / ( action.getClip().duration * frameRate ) ) * 1.0;
+                else
+                    slider.position.x = -0.5 + ( progress / ( 100 * frameRate ) ) * 1.0;
             // Move my label thumb
             let myThumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
             if ( myThumb ) 
