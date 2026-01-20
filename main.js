@@ -164,6 +164,7 @@ var miniScreen = null;
 let sliderXAxis = new THREE.Vector3();
 let sliderNormal = new THREE.Vector3();
 let sliderCenter = new THREE.Vector3();
+var buttonAnimationSync = null;
 
 // I am using this just to grab the label and change its color when someone follows me in VR mode
 var tempFollowLabel = null;
@@ -618,6 +619,9 @@ function startXR( animations, model ) {
                 miniScreen.visible = false;
                 socket.emit( 'follow', userName, "none" );  
             } else {
+                if ( flags.isAnimationSync === false )
+                    buttonAnimationSync.setState('selected');
+    
                 miniScreen.visible = true;
                 socket.emit( 'getAllCamera', userName );
                 socket.emit( 'follow', userName, followUser );  
@@ -892,7 +896,7 @@ function startXR( animations, model ) {
     const animationSyncTextPanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
     const animationSyncText = new ThreeMeshUI.Text({ content: 'Sync: ON' });
     animationSyncTextPanel.add( animationSyncText );
-    const buttonAnimationSync = new ThreeMeshUI.Block( buttonOptions );
+    buttonAnimationSync = new ThreeMeshUI.Block( buttonOptions );
     buttonAnimationSync.add( new ThreeMeshUI.Text( { content: 'on/off' } ));
 
 	buttonAnimationSync.setupState( {
@@ -1855,6 +1859,10 @@ function updateFrameNumber() {
 
 function handleFollowUser( user ) {
 
+    // Make sure Users are synced when following
+    animationFolder.children[ 2 ].controller.value.rawValue = true;
+
+
     if( user !== "none" ){
         followUser = user;
         // Remove keyboard controls
@@ -2095,9 +2103,8 @@ function createGUI( model, animations) {
 
             if( ev.target.label === "clip" && ev.value === "none" ){
                 if (flags.isAnimationSync == true ) {
-                    console.log(ev.value)
-                      syncStates.clip = ev.value;
-                      syncStates.frame = 0;
+                    syncStates.clip = ev.value;
+                    syncStates.frame = 0;
                 }
                 // Emit change of the clip
               //  if( flags.isAnimationSync == true )
@@ -2149,8 +2156,6 @@ function createGUI( model, animations) {
                     else
                         action = mixer.clipAction( THREE.AnimationClip.findByName( animations, syncStates.clip.name ) );
                     let frameTime = (tempFrame / frameRate);
-                    console.log( frameTime );
-                    console.log(action)
                     action.time = frameTime;
                     mixer.update( 0 ); // Apply the new time
                     action.play();
@@ -2642,7 +2647,7 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     }
 
     // Update Status
-    document.getElementById("myBox").textContent = user + " changed animation clip";
+    document.getElementById("myBox").textContent = user + " is at clip: " + clip;
 
     // Update the UI
     if( flags.isAnimationSync == true && sync == true ){
@@ -2893,7 +2898,7 @@ socket.on( 'askClip', function( clip, user, sync ){
     const session = renderer.xr.getSession()
 
     // Check if it is the same clip running
-    if( currentClip && clip && clip.name == currentClip.name ) {
+    if( ( currentClip && clip && clip.name == currentClip.name ) || ( clip == currentClip ) ) {
         if (session) {
             // Set the Follow User label
             tempAnimationLabel.set({ backgroundColor: new THREE.Color(0x777777).toArray() });
@@ -2915,6 +2920,7 @@ socket.on( 'askClip', function( clip, user, sync ){
             }
         }
         else{
+            console.log("SHOW SLIDER FOR " + user);
             document.getElementById( "slider" + user.toString() ).style.visibility = "visible";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
             // Show XR Slider if it exists
@@ -2930,7 +2936,10 @@ socket.on( 'askClip', function( clip, user, sync ){
         
         // Prepare the Timeline
         let userFollowSlider = document.getElementById( "slider" + user.toString() );
-        userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        if (currentClip != null ) 
+            userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        else
+            userFollowSlider.max = 100;
         updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user.toString() ) ); 
         //userFollowSlider.value = 1;
 
@@ -2943,8 +2952,11 @@ socket.on( 'askClip', function( clip, user, sync ){
         // Hide XR Slider if it exists
         if (session) {
             // Set the Follow User label
-            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0x00fffff).toArray() });
-            tempAnimationLabel.childrenTexts[0].set({ content: user + " is at " + clip.name });
+            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0xff0000).toArray() });
+            if (clip)
+                tempAnimationLabel.childrenTexts[0].set({ content: user + " is at " + clip.name });
+            else
+                tempAnimationLabel.childrenTexts[0].set({ content: user + " is at none" });
 
             let slider = scene.getObjectByName( "xrSliderThumb" + user );
             let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
@@ -2957,8 +2969,8 @@ socket.on( 'askClip', function( clip, user, sync ){
 
     // Make sure the slider is hidden when NONE is selected
     if( !clip || clip.name == "none" ){
-        document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
-        document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
+     //   document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
+     //   document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
         // Hide XR Slider if it exists
         if (session) {
             let slider = scene.getObjectByName( "xrSliderThumb" + user );
@@ -3130,7 +3142,7 @@ socket.on( 'grabbing', function( value, progress, sync, user, clip ){
     }
 
     // Update status
-    document.getElementById("myBox").textContent = user + " grabbing animation";
+    document.getElementById("myBox").textContent = user + " grabbing animation " + clip;
 
     if ( clip == "none" ) {
         if (sync == true ) {
