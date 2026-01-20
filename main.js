@@ -844,16 +844,33 @@ function startXR( animations, model ) {
 		onSet: () => {
             // Update the text
 		    animationCurrentText.set( { content: animationFolder.children[ 0 ].options[ animationIndex ].value } );
-            // Save as a global variable
-            currentClip = THREE.AnimationClip.findByName( animations, animationFolder.children[ 0 ].options[ animationIndex ].value );
-
-            if( action )
+            
+            if( action ) 
                 action.stop();
-            action = mixer.clipAction( currentClip );
-            action.clampWhenFinished = true // pause in the last keyframe
-            action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
 
-            socket.emit( 'onClipChange', animationFolder.children[ 0 ].options[ animationIndex ].value, flags.isAnimationSync, userName );   
+            if ( animationFolder.children[ 0 ].options[ animationIndex ].value === 'none' ) {
+                action = null;
+                currentClip = null;
+            } else {            // Save as a global variable
+                currentClip = THREE.AnimationClip.findByName( animations, animationFolder.children[ 0 ].options[ animationIndex ].value );
+                action = mixer.clipAction( currentClip );
+                action.clampWhenFinished = true // pause in the last keyframe
+                action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
+            }
+
+
+
+            if (flags.isAnimationSync == true )
+                syncStates.clip = animationFolder.children[ 0 ].options[ animationIndex ].value;
+            
+
+            socket.emit( 'onClipChange', animationFolder.children[ 0 ].options[ animationIndex ].value, flags.isAnimationSync, userName );  
+
+            // Move Thumb to Frame
+            xrSliderThumb.position.x = -0.5;
+            xrFrameText.set( { content: '0001' } );
+
+
 
 		}
 	});
@@ -884,8 +901,36 @@ function startXR( animations, model ) {
             if ( action ) 
                 action.paused = true;
            
-            if( flags.isAnimationSync === true ) {
+            if ( flags.isAnimationSync === true ) {
                 socket.emit( 'addSyncUser', userName, currentClip );
+
+                animationCurrentText.set( { content: syncStates.clip } );
+             //   animationFolder.children[ 0 ].options[ animationIndex ].value = syncStates.clip;
+                
+
+                if (syncStates.clip === 'none') {
+                    action = null;
+                    currentClip = null;
+                    //xrSliderThumb.position.x = -0.5;
+                    //xrFrameText.set( { content: '0001' } );
+                } else {
+                    mixer.stopAllAction();
+
+                    currentClip = THREE.AnimationClip.findByName( animations, syncStates.clip );
+                    action = mixer.clipAction( currentClip );
+                    action.reset().play();
+                    
+                    action.clampWhenFinished = true // pause in the last keyframe
+                    action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
+                    
+                    action.time =  Math.min( currentClip.duration, syncStates.frame / frameRate );
+                    mixer.update( 0 ); // Apply the new time
+                  
+                    
+                    action.paused = true;
+                }
+
+                // Adjust the thumb position and frame counter
                 if ( arrayUsers.length > 0 ) {
                     let thumb = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + arrayUsers[0].toString() );
                     xrSliderThumb.position.x = thumb.position.x;
@@ -897,7 +942,7 @@ function startXR( animations, model ) {
 
             if ( arrayUsers.length > 0 ) {
                 console.log("ENTROU")
-                for( const user of arrayUsers ){
+                for ( const user of arrayUsers ) {
                     console.log("ENTROU2")
                     // Hide the thumb on XR too
                     let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
@@ -2603,7 +2648,7 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     }
 
     // Check if it is the same clip running
-    if( currentClip && clip == currentClip.name ) {
+    if( (currentClip && clip == currentClip.name)  || ( !currentClip && clip == "none" ) ) {
 
         if( flags.isAnimationSync == true && sync == true){
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
@@ -2611,8 +2656,17 @@ socket.on( 'onClipChange', function( clip, sync, user ){
             // Hide XR Slider if it exists
             if (session) {
                 let slider = scene.getObjectByName( "xrSliderThumb" + user );
-                if( slider )
+                let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+                if( label ) {
+                    label.visible = false;
+                    label.position.x = -0.5;
+                }
+                if( slider ) {
                     slider.visible = false;
+                    slider.position.x = -0.5;
+                }
+                
+                xrSliderThumb.position.x = -0.5; // Reset position
             }
         }
         else{
@@ -2621,14 +2675,24 @@ socket.on( 'onClipChange', function( clip, sync, user ){
             // Show XR Slider if it exists
             if (session) {
                 let slider = scene.getObjectByName( "xrSliderThumb" + user );
-                if( slider ) 
+                let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+                if( label ) {
+                    label.visible = true;
+                    label.position.x = -0.5;
+                }
+                if( slider ) {
                     slider.visible = true;
+                    slider.position.x = -0.5;
+                }
             }
         }
 
         // Prepare the Timeline
         let userFollowSlider = document.getElementById( "slider" + user.toString() );
-        userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        if (clip != "none")
+            userFollowSlider.max = Math.round( currentClip.duration * frameRate );
+        else
+            userFollowSlider.max = 100;
         userFollowSlider.value = 1;
         updateSliderValue( userFollowSlider, document.getElementById( "sliderString" + user.toString() ) )
 
@@ -2638,6 +2702,9 @@ socket.on( 'onClipChange', function( clip, sync, user ){
         // Hide XR Slider if it exists
         if (session) {
             let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+            if( label ) 
+                label.visible = false;
             if( slider )
                 slider.visible = false;
         }
@@ -2817,6 +2884,9 @@ socket.on( 'askClip', function( clip, user, sync ){
             // Hide XR Slider if it exists
             if (session) {
                 let slider = scene.getObjectByName( "xrSliderThumb" + user );
+                let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+                if( label ) 
+                    label.visible = false;
                 if( slider )
                     slider.visible = false;
             }
@@ -2826,6 +2896,9 @@ socket.on( 'askClip', function( clip, user, sync ){
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "visible";
             // Show XR Slider if it exists
             if (session) {
+                let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+                if( label ) 
+                    label.visible = true;
                 let slider = scene.getObjectByName( "xrSliderThumb" + user );
                 if( slider )
                     slider.visible = true;
@@ -2844,6 +2917,9 @@ socket.on( 'askClip', function( clip, user, sync ){
         // Hide XR Slider if it exists
         if (session) {
             let slider = scene.getObjectByName( "xrSliderThumb" + user );
+            let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
+            if( label ) 
+                label.visible = false;
             if( slider )
                 slider.visible = false;
         }
@@ -2944,6 +3020,13 @@ socket.on( 'removeSyncUser', function( user, clip ){
         if (session) {
             let thumbToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
             let labelToShow = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
+            
+            if ( flags.isAnimationSync ) {
+                thumbToShow.position.x = xrSliderThumb.position.x;
+                labelToShow.position.x = xrSliderThumb.position.x;
+            }
+          
+            
             if ( thumbToShow ) {
                 thumbToShow.visible = true;
                 labelToShow.visible = true;
