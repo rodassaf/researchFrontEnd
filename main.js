@@ -167,6 +167,7 @@ let sliderCenter = new THREE.Vector3();
 
 // I am using this just to grab the label and change its color when someone follows me in VR mode
 var tempFollowLabel = null;
+var tempAnimationLabel = null;
 
 // Plane used for dragging hanlde in free space
 const hitPointWorld = new THREE.Vector3();
@@ -524,6 +525,10 @@ function startXR( animations, model ) {
             tempFollowLabel = row;
             row.name = "FollowUserLabel";
         }    
+        if ( text === 'Animation Clip:' ) {
+            tempAnimationLabel = row;
+            row.name = "AnimationClipLabel";
+        }
         panel.add( row );
         return row;
     }
@@ -2650,6 +2655,13 @@ socket.on( 'onClipChange', function( clip, sync, user ){
     // Check if it is the same clip running
     if( (currentClip && clip == currentClip.name)  || ( !currentClip && clip == "none" ) ) {
 
+        if (session) {
+            // Set the Follow User label
+            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0x777777).toArray() });
+            tempAnimationLabel.childrenTexts[0].set({ content: "Animation Clip:" });
+        }
+
+
         if( flags.isAnimationSync == true && sync == true){
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user ).style.visibility = "hidden";
@@ -2707,6 +2719,10 @@ socket.on( 'onClipChange', function( clip, sync, user ){
                 label.visible = false;
             if( slider )
                 slider.visible = false;
+            
+            // Set the Follow User label
+            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0xff0000).toArray() });
+            tempAnimationLabel.childrenTexts[0].set({ content: user +" is at: " + clip });
         }
     }
 
@@ -2878,6 +2894,13 @@ socket.on( 'askClip', function( clip, user, sync ){
 
     // Check if it is the same clip running
     if( currentClip && clip && clip.name == currentClip.name ) {
+        if (session) {
+            // Set the Follow User label
+            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0x777777).toArray() });
+            tempAnimationLabel.childrenTexts[0].set({ content: "Animation Clip:" });
+        }
+
+
         if( flags.isAnimationSync == true && sync == true && arrayUsers.length > 0){
             document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
             document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
@@ -2912,10 +2935,17 @@ socket.on( 'askClip', function( clip, user, sync ){
         //userFollowSlider.value = 1;
 
     } else {
+
+
+
         document.getElementById( "slider" + user.toString() ).style.visibility = "hidden";
         document.getElementById( "sliderString" + user.toString() ).style.visibility = "hidden";
         // Hide XR Slider if it exists
         if (session) {
+            // Set the Follow User label
+            tempAnimationLabel.set({ backgroundColor: new THREE.Color(0x00fffff).toArray() });
+            tempAnimationLabel.childrenTexts[0].set({ content: user + " is at " + clip.name });
+
             let slider = scene.getObjectByName( "xrSliderThumb" + user );
             let label = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user );
             if( label ) 
