@@ -245,7 +245,7 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/wrestler.glb',
+        'glb/girl.glb',
         // called when the resource is loaded
         function ( gltf ) {
             gltf.scene.scale.set( 0.4, 0.4, 0.4 );
