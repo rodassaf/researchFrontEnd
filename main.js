@@ -223,7 +223,7 @@ function init() {
     scene.add( dirLight );
 
     // ground
-    let mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+    let mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999 } ) );
     mesh.rotation.x = - Math.PI / 2;
     mesh.receiveShadow = true;
     scene.add( mesh );
@@ -245,7 +245,7 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/RobotExpressive.glb',
+        'glb/wrestler.glb',
         // called when the resource is loaded
         function ( gltf ) {
             gltf.scene.scale.set( 0.4, 0.4, 0.4 );
@@ -671,12 +671,14 @@ function startXR( animations, model ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
-             if ( morphIndex < morphFolder.children[ 0 ].options.length - 1 ) 
-                morphIndex++;
-            else 
-                morphIndex = 0;
+            if (morphFolder != null) {
+                if ( morphIndex < morphFolder.children[ 0 ].options.length - 1 ) 
+                    morphIndex++;
+                else 
+                    morphIndex = 0;
 
-            morphText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } ); 
+                morphText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } ); 
+            }
 		}
 	});
 
@@ -687,29 +689,30 @@ function startXR( animations, model ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
-            // Update the text
-		    morphCurrentText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } );
-            // Emit change to server
-            if( flags.isMorphSync === true )
-                socket.emit( 'onObjectMorphChange', userName, morphFolder.children[ 0 ].options[ morphIndex ].value );
+            if (morphFolder != null) {
+                // Update the text
+                morphCurrentText.set( { content: morphFolder.children[ 0 ].options[ morphIndex ].value } );
+                // Emit change to server
+                if( flags.isMorphSync === true )
+                    socket.emit( 'onObjectMorphChange', userName, morphFolder.children[ 0 ].options[ morphIndex ].value );
 
-            // Update the morph target list of the current object
-            // Clear NameTargets
-            morphNameTargets = [];
-            // Feed the object of Morph Targets by getting the list of strings and associate the values
-            if( morphFolder.children[ 0 ].options[ morphIndex ].value !== 'none' ) {
-                morphNameTargets = Object.keys( model.getObjectByName( morphFolder.children[ 0 ].options[ morphIndex ].value ).morphTargetDictionary  );
-                if(morphNameTargets.length > 0 ) {
-                    morphOptionText.set( { content: morphNameTargets[0] } );
-                    morphChannelCurrentText.set( { content: morphNameTargets[0] } );
-                    // Update Slider value based on the morph value
-                    xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
+                // Update the morph target list of the current object
+                // Clear NameTargets
+                morphNameTargets = [];
+                // Feed the object of Morph Targets by getting the list of strings and associate the values
+                if( morphFolder.children[ 0 ].options[ morphIndex ].value !== 'none' ) {
+                    morphNameTargets = Object.keys( model.getObjectByName( morphFolder.children[ 0 ].options[ morphIndex ].value ).morphTargetDictionary  );
+                    if(morphNameTargets.length > 0 ) {
+                        morphOptionText.set( { content: morphNameTargets[0] } );
+                        morphChannelCurrentText.set( { content: morphNameTargets[0] } );
+                        // Update Slider value based on the morph value
+                        xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
+                    }
+                } else {
+                    morphOptionText.set( { content: 'none' } );
+                    morphChannelCurrentText.set( { content: 'none' } );
                 }
-            } else {
-                morphOptionText.set( { content: 'none' } );
-                morphChannelCurrentText.set( { content: 'none' } );
             }
-
 		}
 	});
 
@@ -740,10 +743,13 @@ function startXR( animations, model ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
-            morphOptionText.set( { content: morphNameTargets[ morphChannelIndex ] } ); 
-            // Update Slider value based on the morph value
-            xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
-		}
+            if (morphFolder != null) {
+                morphOptionText.set( { content: morphNameTargets[ morphChannelIndex ] } ); 
+                // Update Slider value based on the morph value
+                xrSliderMorpherThumb.position.x = -0.5 + ( model.getObjectByName( morphCurrentText.content ).morphTargetInfluences[ morphNameTargets.indexOf( morphOptionText.content ) ] ) * 1.0;
+                
+            }
+        }
 	});
 
 	buttonApplyChannelMorph.setupState( hoveredStateAttributes );
@@ -866,8 +872,10 @@ function startXR( animations, model ) {
             } else {            // Save as a global variable
                 currentClip = THREE.AnimationClip.findByName( animations, animationFolder.children[ 0 ].options[ animationIndex ].value );
                 action = mixer.clipAction( currentClip );
+                action.reset().play();
                 action.clampWhenFinished = true // pause in the last keyframe
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat ) 
+                action.paused = true;
             }
 
 
@@ -2096,8 +2104,10 @@ function createGUI( model, animations) {
                 if( action )
                     action.stop();
                 action = mixer.clipAction( clip );
+                action.reset().play();
                 action.clampWhenFinished = true // pause in the last keyframe
                 action.setLoop( animationLoop.loop === false ? THREE.LoopOnce : THREE.LoopRepeat )
+                action.paused = true;
                 // Prepare the Timeline
                 slider.max = Math.round( clip.duration * frameRate );
                 slider.value = 1;
