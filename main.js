@@ -36,6 +36,9 @@ const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.02; // Pointer size in meters
 
+// Toggle to turn Camera Helper ON or OFF
+var cameraHelperVisibility = false; 
+
 // Framerate
 const frameRate = 30;
 
@@ -1885,7 +1888,8 @@ function handleFollowUser( user ) {
 
         if ( userCameraHelper ) {
             // Show it
-            userCameraHelper.visible = true;
+            if (cameraHelperVisibility == true)
+                userCameraHelper.visible = true;
             userAvatar.visible = true;
             socket.emit( 'unhide', userName, followUser );
         }
@@ -2267,6 +2271,8 @@ socket.on( 'createCamera', function( msg ) {
     cameraHelper.name = msg;
     scene.add( cameraHelper );
 
+    cameraHelper.visible = cameraHelperVisibility;
+
     // Load an avatar
     loadAvatar( 'glb/avatarVr.glb', userCamera, msg );
     noXRCameraUpdate();
@@ -2399,6 +2405,7 @@ socket.once( 'checkWhosOnline', function( msg ){
             cameraHelper.name = msg[ k ];
             scene.add( userCamera );
             scene.add( cameraHelper );
+            cameraHelper.visible = cameraHelperVisibility;
             // Load an avatar
             loadAvatar( 'glb/avatarVr.glb', userCamera, msg[ k ] );
             
@@ -2575,8 +2582,10 @@ socket.on( 'unhide', function( user, byUser ){
         
         if ( userCameraHelper ) {
             // Show it
-            userCameraHelper.visible = true;
+            if (cameraHelperVisibility == true) 
+                userCameraHelper.visible = true;
             userAvatar.visible = true;
+            
         }
     }
 
