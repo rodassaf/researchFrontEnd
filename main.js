@@ -29,7 +29,7 @@ var socket = io( "http://localhost:3000" , {
 
 // Global variables ***************************************************************
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.01, 1000 );
 const followCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 const miniRT = new THREE.WebGLRenderTarget(256, 256); // Mini render target for the follow camera XR Use Case
 const renderer = new THREE.WebGLRenderer();
@@ -245,7 +245,7 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/girl.glb',
+        'glb/soccer.glb',
         // called when the resource is loaded
         function ( gltf ) {
             gltf.scene.scale.set( 0.4, 0.4, 0.4 );
