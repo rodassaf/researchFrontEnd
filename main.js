@@ -245,10 +245,15 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/soccer.glb',
+        'glb/girl.glb',
         // called when the resource is loaded
         function ( gltf ) {
-            gltf.scene.scale.set( 0.4, 0.4, 0.4 );
+            // ROBOT EXPRESSIVE
+            //gltf.scene.scale.set( 0.4, 0.4, 0.4 );
+
+            // No Scale
+            gltf.scene.scale.set( 1, 1, 1 );
+
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
             gltf.scenes; // Array<THREE.Group>
