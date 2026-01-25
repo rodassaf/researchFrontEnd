@@ -245,7 +245,7 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/girl.glb',
+        'glb/wrestler.glb',
         // called when the resource is loaded
         function ( gltf ) {
             // ROBOT EXPRESSIVE
@@ -1730,7 +1730,11 @@ window.addEventListener( 'mousemove', ( event ) => {
 window.addEventListener('keydown', (event) => {
     if (event.key === 'Shift') 
         isShiftDown = true;
+    if (event.key === 'f') 
+        fitCameraToObject( camera, meshModel[0], 1.6, controls );
 });
+
+
 
 window.addEventListener('keyup', (event) => {
     if (event.key === 'Shift') {
