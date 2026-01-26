@@ -246,6 +246,10 @@ function init() {
     loader.load(
         // resource URL
         'glb/wrestler.glb',
+        //'glb/girl.glb',
+        //'glb/soccer.glb',
+        //'glb/runGirl.glb',
+
         // called when the resource is loaded
         function ( gltf ) {
             // ROBOT EXPRESSIVE
