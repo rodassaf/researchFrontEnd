@@ -245,18 +245,18 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/wrestler.glb',
+        //'glb/wrestler.glb',
         //'glb/girl.glb',
-        //'glb/soccer.glb',
+        'glb/hero.glb',
+        //'glb/hiphop.glb',
         //'glb/runGirl.glb',
 
         // called when the resource is loaded
         function ( gltf ) {
-            // ROBOT EXPRESSIVE
-            //gltf.scene.scale.set( 0.4, 0.4, 0.4 );
-
-            // No Scale
-            gltf.scene.scale.set( 1, 1, 1 );
+            // SCALE CHOICE   
+            //gltf.scene.scale.set( 0.4, 0.4, 0.4 ); //ROBOT
+            gltf.scene.scale.set( 0.15, 0.15, 0.15 ); //HERO
+            //gltf.scene.scale.set( 1, 1, 1 ) //OTHERS
 
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
