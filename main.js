@@ -231,6 +231,7 @@ function init() {
     let grid = new THREE.GridHelper( 2000, 3290, 0x000000, 0x000000 );
     grid.material.opacity = 0.1;
     grid.material.transparent = true;
+    grid.position.y = 0.01; // Slightly above the ground to prevent z-fighting
     scene.add( grid );
 
     // Create a clock
@@ -379,14 +380,16 @@ function startXR( animations, model ) {
         selectState = true;
 
         const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb, panelHandle ], true );
+        console.log(intersections);
     
-        if ( intersections.length >= 1 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
+        if ( intersections.length >= 1 && intersections.length <= 4 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
            
             let hitObject = intersections[0].object.parent;
             if (!hitObject) return;
 
             // We have a thumb hit; get its id and the hit point
             const hitPoint = intersections[0].point.clone();
+            
 
              if ( hitObject.userData.sliderId === 'xrSliderThumb' ) {
                 console.log("xrSliderThumb selected");
@@ -934,7 +937,7 @@ function startXR( animations, model ) {
 		state: 'selected',
 		attributes: selectedAttributes,
 		onSet: () => {
-            console.log("ENTROU0")
+
 		    flags.isAnimationSync = !flags.isAnimationSync;
             animationSyncText.set( { content: flags.isAnimationSync ? 'Sync: ON' : 'Sync: OFF' } );
 
@@ -981,9 +984,8 @@ function startXR( animations, model ) {
             }
 
             if ( arrayUsers.length > 0 ) {
-                console.log("ENTROU")
+
                 for ( const user of arrayUsers ) {
-                    console.log("ENTROU2")
                     // Hide the thumb on XR too
                     let thumbToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderThumb' + user.toString() );
                     let labelToHide = xrAnimationSliderTrack.getObjectByName( 'xrSliderLabel' + user.toString() );
