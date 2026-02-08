@@ -250,12 +250,13 @@ function init() {
         'glb/hero.glb',
         //'glb/hiphop.glb',
         //'glb/runGirl.glb',
+        //'glb/RobotExpressive.glb',
 
         // called when the resource is loaded
         function ( gltf ) {
             // SCALE CHOICE   
             //gltf.scene.scale.set( 0.4, 0.4, 0.4 ); //ROBOT
-            gltf.scene.scale.set( 0.15, 0.15, 0.15 ); //HERO
+            gltf.scene.scale.set( 0.10, 0.10, 0.10 ); //HERO
             //gltf.scene.scale.set( 1, 1, 1 ) //OTHERS
 
             scene.add( gltf.scene );
@@ -391,8 +392,14 @@ function startXR( animations, model ) {
                 console.log("xrSliderThumb selected");
                 xrAnimationDragging = true;
 
+                // Convert hit point (world) into track local space
+                const hitLocalOnTrack = xrAnimationSliderTrack.worldToLocal( hitPoint.clone() );
+
                 // Get the world position of the thumb (not the track)
                 let thumbWorldPos = new THREE.Vector3().setFromMatrixPosition( xrSliderThumb.matrixWorld );
+
+                // Convert thumb center (world) into track local space
+                const thumbLocalOnTrack = xrAnimationSliderTrack.worldToLocal( thumbWorldPos.clone() );
 
                 // Slider direction (X) and plane normal (Y)
                 sliderCenter.setFromMatrixPosition( xrAnimationSliderTrack.matrixWorld );
@@ -400,8 +407,7 @@ function startXR( animations, model ) {
                 sliderNormal.set(0, 0, 1).applyQuaternion( xrAnimationSliderTrack.quaternion ).normalize();
 
                 // Vector from thumb center to ray hit
-                const hitOffsetVec = new THREE.Vector3().subVectors( hitPoint, thumbWorldPos );
-                grabOffset = hitOffsetVec.dot( sliderXAxis ); // signed offset from center of thumb
+                grabOffset = hitLocalOnTrack.x - thumbLocalOnTrack.x;
 
             } 
             
@@ -409,8 +415,14 @@ function startXR( animations, model ) {
                 console.log("xrSliderMorpherThumb selected");
                 xrMorpherDragging = true;
 
-                // Get the world position of the thumb (not the track)
+                 // Convert hit point (world) into track local space
+                const hitLocalOnTrack = xrMorpherSliderTrack.worldToLocal(hitPoint.clone());
+
+                // Convert thumb center (world) into track local space
                 let thumbWorldPos = new THREE.Vector3().setFromMatrixPosition( xrSliderMorpherThumb.matrixWorld );
+                const thumbLocalOnTrack = xrMorpherSliderTrack.worldToLocal( thumbWorldPos.clone() );
+
+          
 
                 // Slider direction (X) and plane normal (Y)
                 sliderCenter.setFromMatrixPosition( xrMorpherSliderTrack.matrixWorld );
@@ -418,8 +430,7 @@ function startXR( animations, model ) {
                 sliderNormal.set(0, 0, 1).applyQuaternion( xrMorpherSliderTrack.quaternion ).normalize();
 
                 // Vector from thumb center to ray hit
-                const hitOffsetVec = new THREE.Vector3().subVectors( hitPoint, thumbWorldPos );
-                grabOffset = hitOffsetVec.dot( sliderXAxis ); // signed offset from center of thumb
+                grabOffset = hitLocalOnTrack.x - thumbLocalOnTrack.x;     
             }  
 
             if ( intersections[0].object === panelHandle && intersections.length === 1 ) {
@@ -1523,16 +1534,29 @@ function render() {
             const rayDir = new THREE.Vector3(0, 0, -1)
                 .applyMatrix4( new THREE.Matrix4().extractRotation( controller1.matrixWorld ) )
                 .normalize();
-
             const ray = new THREE.Ray( rayOrigin, rayDir );
-            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint( sliderNormal, sliderCenter );
-            const intersectPoint = new THREE.Vector3(); 
 
-            if ( ray.intersectPlane( sliderPlane, intersectPoint ) ) {
-                const dragVec = new THREE.Vector3().subVectors( intersectPoint, sliderCenter );
-                let projectedX = dragVec.dot( sliderXAxis ) - grabOffset;
+            // Track world center + world normal (recomputed every frame)
+            const trackWorldCenter = new THREE.Vector3().setFromMatrixPosition(xrAnimationSliderTrack.matrixWorld);
+            const trackWorldQuat = new THREE.Quaternion();
+            xrAnimationSliderTrack.getWorldQuaternion( trackWorldQuat );
 
+            // Choose the normal that matches your slider plane:
+            // If your slider lies in track-local XY, the normal is +Z.
+            const trackWorldNormal = new THREE.Vector3(0, 0, 1).applyQuaternion( trackWorldQuat ).normalize();
+
+            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(trackWorldNormal, trackWorldCenter);
+
+            const intersectPointWorld = new THREE.Vector3();
+
+            if ( ray.intersectPlane( sliderPlane, intersectPointWorld ) ) {
+                // Convert world intersection into track local space
+                const intersectLocalOnTrack = xrAnimationSliderTrack.worldToLocal( intersectPointWorld.clone() );
+
+                // Project along track-local X and remove offset
+                let projectedX = intersectLocalOnTrack.x - grabOffset;
                 projectedX = THREE.MathUtils.clamp( projectedX, minX, maxX );
+
                 xrSliderThumb.position.x = projectedX;
 
                 if ( action ) {
@@ -1558,6 +1582,7 @@ function render() {
                     // Emit value
                     socket.emit( 'grabbing', action.time, progress, flags.isAnimationSync, userName, animationFolder.children[ 0 ].controller.value.rawValue );
                 } else {
+                    console.log("HERE!!!!");
                     // Calculate and store normalized slider value
                     const normalized = (projectedX - minX) / ( maxX - minX );
                     const frame = Math.round( normalized * ( slider.max - slider.min ) ) + parseInt( slider.min );
@@ -1577,13 +1602,27 @@ function render() {
                 .normalize();
 
             const ray = new THREE.Ray( rayOrigin, rayDir );
-            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint( sliderNormal, sliderCenter );
-            const intersectPoint = new THREE.Vector3();
 
-            if ( ray.intersectPlane( sliderPlane, intersectPoint ) ) {
-                const dragVec = new THREE.Vector3().subVectors( intersectPoint, sliderCenter );
-                let projectedX = dragVec.dot( sliderXAxis ) - grabOffset;
+            // Track world center + world normal (recomputed every frame)
+            const trackWorldCenter = new THREE.Vector3().setFromMatrixPosition(xrMorpherSliderTrack.matrixWorld);
 
+            const trackWorldQuat = new THREE.Quaternion();
+            xrMorpherSliderTrack.getWorldQuaternion(trackWorldQuat);
+
+            // Choose the normal that matches your slider plane:
+            // If your slider lies in track-local XY, the normal is +Z.
+            const trackWorldNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(trackWorldQuat).normalize();
+
+            const sliderPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(trackWorldNormal, trackWorldCenter);
+
+            const intersectPointWorld = new THREE.Vector3();
+
+            if ( ray.intersectPlane( sliderPlane, intersectPointWorld ) ) {
+                // Convert world intersection into track local space
+                const intersectLocalOnTrack = xrMorpherSliderTrack.worldToLocal( intersectPointWorld.clone() );
+
+                // Project along track-local X and remove offset
+                let projectedX = intersectLocalOnTrack.x - grabOffset;
                 projectedX = THREE.MathUtils.clamp( projectedX, minX, maxX );
                 xrSliderMorpherThumb.position.x = projectedX;
 
@@ -1623,6 +1662,14 @@ function render() {
                 .clone()
                 .add(raycaster.ray.direction.clone().multiplyScalar(dragDistance))
                 .add(grabOffsetWorld);
+
+            // Keep the same height as the panel's current world position to avoid unwanted vertical movement
+            // Get current world position
+            const currentWorld = new THREE.Vector3();
+            panelHandle.getWorldPosition( currentWorld );
+
+            // Replace only X and Y
+            desiredWorld.y = currentWorld.y;
 
             // Move handle (and therefore the panel)
             panelHandle.position.copy( desiredWorld );
