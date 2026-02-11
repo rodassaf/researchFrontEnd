@@ -173,6 +173,10 @@ var buttonAnimationSync = null;
 var tempFollowLabel = null;
 var tempAnimationLabel = null;
 
+// Throttle raycasting variables
+let lastRaycastMs = 0;
+const RAYCAST_INTERVAL_MS = 70; // ~15 Hz (try 50–100)
+
 // Plane used for dragging hanlde in free space
 const hitPointWorld = new THREE.Vector3();
 const grabOffsetWorld = new THREE.Vector3();
@@ -1690,6 +1694,12 @@ function render() {
         }
 
         if ( xrPointer ) {
+            // Throttle raycasting for performance
+            let timeMs = performance.now();
+            if ( timeMs - lastRaycastMs < RAYCAST_INTERVAL_MS ) 
+                return;
+            lastRaycastMs = timeMs;
+
             // Get controller orientation & position
             let tempMatrix = new THREE.Matrix4();
             tempMatrix.identity().extractRotation( controller1.matrixWorld );
