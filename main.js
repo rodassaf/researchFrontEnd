@@ -34,7 +34,7 @@ const followCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window
 const miniRT = new THREE.WebGLRenderTarget(256, 256); // Mini render target for the follow camera XR Use Case
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
-const pointerSize = 0.02; // Pointer size in meters
+const pointerSize = 0.01; // Pointer size in meters
 
 // Toggle to turn Camera Helper ON or OFF
 var cameraHelperVisibility = false; 
@@ -258,7 +258,8 @@ function init() {
             // SCALE CHOICE   
             //gltf.scene.scale.set( 0.4, 0.4, 0.4 ); //ROBOT
             //gltf.scene.scale.set( 0.10, 0.10, 0.10 ); //HERO
-            gltf.scene.scale.set( 1, 1, 1 ) //OTHERS
+            //gltf.scene.scale.set( 0.92, 0.92, 0.92 ); //WRESTLER
+            gltf.scene.scale.set( 1.1, 1.1, 1.1 ); //OTHERS
 
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
