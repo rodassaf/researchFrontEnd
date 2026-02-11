@@ -246,19 +246,19 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        //'glb/wrestler.glb',
-        //'glb/girl.glb',
-        'glb/hero.glb',
-        //'glb/hiphop.glb',
-        //'glb/runGirl.glb',
+        'glb/wrestler_compressed.glb',
+        //'glb/girl_compressed.glb',
+        //'glb/hero_compressed.glb',
+        //'glb/hiphop_compressed.glb',
+        //'glb/runGirl_compressed.glb',
         //'glb/RobotExpressive.glb',
 
         // called when the resource is loaded
         function ( gltf ) {
             // SCALE CHOICE   
             //gltf.scene.scale.set( 0.4, 0.4, 0.4 ); //ROBOT
-            gltf.scene.scale.set( 0.10, 0.10, 0.10 ); //HERO
-            //gltf.scene.scale.set( 1, 1, 1 ) //OTHERS
+            //gltf.scene.scale.set( 0.10, 0.10, 0.10 ); //HERO
+            gltf.scene.scale.set( 1, 1, 1 ) //OTHERS
 
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
