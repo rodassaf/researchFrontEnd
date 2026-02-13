@@ -246,7 +246,7 @@ function init() {
     // Load a glTF resource
     loader.load(
         // resource URL
-        'glb/wrestler_compressed.glb',
+        'glb/wrestler.glb',
         //'glb/girl_compressed.glb',
         //'glb/hero_compressed.glb',
         //'glb/hiphop_compressed.glb',
