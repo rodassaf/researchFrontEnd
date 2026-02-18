@@ -247,19 +247,19 @@ function init() {
     loader.load(
         // resource URL
         //'glb/wrestler.glb',
-        'glb/bizdude.glb',
-        //'glb/hero_compressed.glb',
-        //'glb/hiphop_compressed.glb',
-        //'glb/runGirl_compressed.glb',
+        //'glb/bizdude.glb',
+        //'glb/madman.glb',
+        //'glb/hoodie.glb',
+        'glb/bunny.glb',
         //'glb/RobotExpressive.glb',
 
         // called when the resource is loaded
         function ( gltf ) {
             // SCALE CHOICE   
             //gltf.scene.scale.set( 0.4, 0.4, 0.4 ); //ROBOT
-            //gltf.scene.scale.set( 0.10, 0.10, 0.10 ); //HERO
+            gltf.scene.scale.set( 0.34, 0.34, 0.34 ); //ALL
             //gltf.scene.scale.set( 0.92, 0.92, 0.92 ); //WRESTLER
-            gltf.scene.scale.set( 1.1, 1.1, 1.1 ); //OTHERS
+    
 
             scene.add( gltf.scene );
             gltf.animations; // Array<THREE.AnimationClip>
