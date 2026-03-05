@@ -31,7 +31,7 @@ var socket = io( "http://localhost:3000" , {
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.01, 1000 );
 const followCamera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-const miniRT = new THREE.WebGLRenderTarget(256, 256); // Mini render target for the follow camera XR Use Case
+const miniRT = new THREE.WebGLRenderTarget(512, 256); // Mini render target for the follow camera XR Use Case
 const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.01; // Pointer size in meters
@@ -332,7 +332,7 @@ function startXR( animations, model ) {
     scene.add( controller2 );
 
     // Create a mini scene and camera to be rendered on the controller
-    const miniScreenGeometry = new THREE.PlaneGeometry(0.2, 0.2); // small square
+    const miniScreenGeometry = new THREE.PlaneGeometry(0.3, 0.15); // small square
     const miniScreenMaterial = new THREE.MeshBasicMaterial({
         map: miniRT.texture,
         side: THREE.DoubleSide,
@@ -381,7 +381,6 @@ function startXR( animations, model ) {
         selectState = true;
 
         const intersections = raycaster.intersectObjects( [ xrSliderThumb, xrSliderMorpherThumb, panelHandle ], true );
-        console.log(intersections);
     
         if ( intersections.length >= 1 && intersections.length <= 4 ) { //just found out that buttons have 4 intersections, so add this condition I make sure it is only the thumbnail
            
