@@ -516,7 +516,7 @@ function startXR( animations, model ) {
     // Create the main panel
     panel = new ThreeMeshUI.Block({
         width: 1.2,
-        height: 2.9,
+        height: 3,
         padding: 0.05,
         fontSize: 0.045,
         justifyContent: 'start',
@@ -563,6 +563,15 @@ function startXR( animations, model ) {
     // Buttons Configuration
 	const buttonOptions = {
 		width: 0.2,
+		height: 0.1,
+		justifyContent: 'center',
+		offset: 0.05,
+		margin: 0.02,
+		borderRadius: 0.055
+	};
+
+    const buttonOptions2 = {
+		width: 0.3,
 		height: 0.1,
 		justifyContent: 'center',
 		offset: 0.05,
@@ -1080,9 +1089,60 @@ function startXR( animations, model ) {
     xrSliderThumb.position.set( -0.5, 0, 0 );
     
     // Create the frame counter
-    const xrFramePanel = new ThreeMeshUI.Block({ width: 0.6, height: 0.12, margin: 0, padding: 0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const xrFramePanel = new ThreeMeshUI.Block({ width: 1, height: 0.12, margin: 0, padding: 0, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
+    const buttonAnimationRestart = new ThreeMeshUI.Block( buttonOptions );
+    buttonAnimationRestart.add( new ThreeMeshUI.Text( { content: 'Restart' } ));
+    const buttonAnimationPlay = new ThreeMeshUI.Block( buttonOptions2 );
+    buttonAnimationPlay.add( new ThreeMeshUI.Text( { content: 'Play/Pause' } ));
+    const buttonAnimationStop = new ThreeMeshUI.Block( buttonOptions );
+    buttonAnimationStop.add( new ThreeMeshUI.Text( { content: 'Stop' } ));
+
+	buttonAnimationRestart.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+            
+            restart();
+		}
+	});
+
+	buttonAnimationRestart.setupState( hoveredStateAttributes );
+	buttonAnimationRestart.setupState( idleStateAttributes );
+
+    buttonAnimationPlay.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+            
+            playPause();
+		}
+	});
+
+	buttonAnimationPlay.setupState( hoveredStateAttributes );
+	buttonAnimationPlay.setupState( idleStateAttributes );
+
+    buttonAnimationStop.setupState( {
+		state: 'selected',
+		attributes: selectedAttributes,
+		onSet: () => {
+            
+            stop();
+		}
+	});
+
+	buttonAnimationStop.setupState( hoveredStateAttributes );
+	buttonAnimationStop.setupState( idleStateAttributes );
+
+    xrFramePanel.add( buttonAnimationRestart, buttonAnimationPlay, buttonAnimationStop );
+   
+    objsToTest.push( buttonAnimationRestart );
+    objsToTest.push( buttonAnimationPlay );
+    objsToTest.push( buttonAnimationStop );
+    
+    const animationFrameTextPanel = new ThreeMeshUI.Block({ width: 0.2, height: 0.12, margin: 0.02, padding: 0.02, borderRadius: 0.03, contentDirection: 'row', backgroundOpacity: 0 });
     xrFrameText = new ThreeMeshUI.Text({ content: '0001' });
-    xrFramePanel.add( xrFrameText );
+    animationFrameTextPanel.add( xrFrameText );
+    xrFramePanel.add( animationFrameTextPanel );
     panel.add( xrFramePanel );
   
     // Check who is online and create a thumb for each user 
