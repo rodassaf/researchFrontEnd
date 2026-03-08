@@ -36,6 +36,11 @@ const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.01; // Pointer size in meters
 
+// Add a RIG to later move the XR camera and avoid clipping with the model in the beginning of the experience
+const playerRig = new THREE.Group(); 
+scene.add( playerRig );
+playerRig.add( camera );
+
 // Toggle to turn Camera Helper ON or OFF
 var cameraHelperVisibility = false; 
 
@@ -285,6 +290,8 @@ function init() {
 
             // Trigger event when a XR session is started
             renderer.xr.addEventListener( 'sessionstart', ( event ) => {
+                //Adjust rig so character doesn't clip in the beginning of the experience
+                playerRig.position.set(0, 0, 2); 
                 // Start XR
                 startXR( gltf.animations, gltf.scene );
             } );
