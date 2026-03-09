@@ -660,6 +660,7 @@ function startXR( animations, model ) {
             if ( listFollowUsers.options[ followIndex ].value === "none" ) {
                 miniScreen.visible = false;
                 socket.emit( 'follow', userName, "none" );  
+                 buttonAnimationSync.visible = true; 
             } else {
                 if ( flags.isAnimationSync === false )
                     buttonAnimationSync.setState('selected');
@@ -667,6 +668,9 @@ function startXR( animations, model ) {
                 miniScreen.visible = true;
                 socket.emit( 'getAllCamera', userName );
                 socket.emit( 'follow', userName, followUser );  
+
+                buttonAnimationSync.visible = false; // Hide Sync Button when someone is following you
+
             }
                 
 
@@ -2000,8 +2004,10 @@ function updateFrameNumber() {
 function handleFollowUser( user ) {
 
     // Make sure Users are synced when following
-    animationFolder.children[ 2 ].controller.value.rawValue = true;
-
+    if (animationFolder) {
+        animationFolder.children[ 2 ].controller.value.rawValue = true;
+        animationFolder.children[ 2 ].disabled = true; // Disable Sync until an animation is selected
+    }
 
     if( user !== "none" ){
         followUser = user;
@@ -2033,6 +2039,8 @@ function handleFollowUser( user ) {
         followUser = user;
         // Add keyboard controls back
         controls.enabled = true;
+        if (animationFolder) 
+            animationFolder.children[ 2 ].disabled = false; // Disable Sync until an animation is selected
         
     }
 }
@@ -2751,6 +2759,7 @@ socket.on( 'follow', function( user, followUserName ){
         tempFollowLabel.set({ backgroundColor: new THREE.Color(0x777777).toArray() });
         tempFollowLabel.childrenTexts[0].set({ content: "Follow User:" });
         userFollowingMe = "none";
+        buttonAnimationSync.visible = true; // Hide Sync Button when someone is following you
         return;
     }
 
@@ -2759,6 +2768,25 @@ socket.on( 'follow', function( user, followUserName ){
         tempFollowLabel.childrenTexts[0].set({ content: user + " is following you" });
        // tempFollowLabel.text = user + " is following you";
         userFollowingMe = user;
+        flags.isAnimationSync = false;
+        buttonAnimationSync.setState('selected');
+        console.log(flags.isAnimationSync);
+        buttonAnimationSync.visible = false; // Hide Sync Button when someone is following you
+    }
+
+    if (animationFolder && followUserName === userName && tempFollowLabel == null ) {
+        animationFolder.children[ 2 ].controller.value.rawValue = true;
+        animationFolder.children[ 2 ].disabled = true; // Disable Sync until an animation is selected 
+        listFollowUsers.disabled = true; // Disable Follow Dropdown until an animation is selected   
+        // Update status
+        document.getElementById("myBox").textContent = user + " followed you";
+    }
+
+    if (animationFolder && followUserName === "none" && tempFollowLabel == null ) {
+        animationFolder.children[ 2 ].disabled = false; // Enable Sync when stop following
+        listFollowUsers.disabled = false; // Disable Follow Dropdown until an animation is selected  
+        // Update status: this is a bit weird but it is to make sure that the user knows who unfollowed him/her when there are only 2 users in the room
+        document.getElementById("myBox").textContent = user + " unfollowed you";
     }
 });
 
