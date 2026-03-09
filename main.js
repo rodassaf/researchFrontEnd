@@ -514,6 +514,49 @@ function startXR( animations, model ) {
     interactiveGroup.listenToXRControllerEvents( controller2 );
     scene.add( interactiveGroup );
 
+    // Add button labels to help users understand the controls (can be removed later)
+    const playText = new ThreeMeshUI.Text({
+        content: "Play/Pause"
+    });
+
+    const buttonPlayLabel = new ThreeMeshUI.Block({
+        width: 0.05,
+        height: 0.02,
+        justifyContent: 'center',
+        alignContent: 'center',
+        fontFamily: './assets/Roboto-msdf.json',
+        fontTexture: './assets/Roboto-msdf.png',
+        fontSize: 0.006,
+        backgroundOpacity: 0,
+
+    });
+
+    buttonPlayLabel.add( playText );
+    buttonPlayLabel.position.set(0.023, -0.011, 0.03);
+    buttonPlayLabel.rotateX( -Math.PI / 2 );
+    controller1.add( buttonPlayLabel );
+
+    const restartText = new ThreeMeshUI.Text({
+        content: "Restart"
+    });
+
+    const buttonRestartLabel = new ThreeMeshUI.Block({
+        width: 0.05,
+        height: 0.02,
+        justifyContent: 'center',
+        alignContent: 'center',
+        fontFamily: './assets/Roboto-msdf.json',
+        fontTexture: './assets/Roboto-msdf.png',
+        fontSize: 0.006,
+        backgroundOpacity: 0,
+
+    });
+
+    buttonRestartLabel.add( restartText );
+    buttonRestartLabel.position.set(0.028, -0.011, 0.018);
+    buttonRestartLabel.rotateX( -Math.PI / 2 );
+    controller1.add( buttonRestartLabel );
+
     // ************** three-mesh-ui panel setup ********************************
     // Remove any previous panel if needed
     if ( scene.getObjectByName( 'xrUIPanel' ) ) {
