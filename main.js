@@ -36,11 +36,6 @@ const renderer = new THREE.WebGLRenderer();
 const controls = new OrbitControls( camera, renderer.domElement );
 const pointerSize = 0.01; // Pointer size in meters
 
-// Add a RIG to later move the XR camera and avoid clipping with the model in the beginning of the experience
-const playerRig = new THREE.Group(); 
-scene.add( playerRig );
-playerRig.add( camera );
-
 // Toggle to turn Camera Helper ON or OFF
 var cameraHelperVisibility = false; 
 
@@ -289,9 +284,15 @@ function init() {
             createGUI( gltf.scene, gltf.animations );
 
             // Trigger event when a XR session is started
-            renderer.xr.addEventListener( 'sessionstart', ( event ) => {
-                //Adjust rig so character doesn't clip in the beginning of the experience
-                playerRig.position.set(0, 0, 2); 
+            renderer.xr.addEventListener( 'sessionstart', async () => {
+                const session = renderer.xr.getSession();
+                const baseRefSpace = await session.requestReferenceSpace('local-floor');
+                const spawnOffset = new XRRigidTransform(
+                    { x: 0, y: 0, z: -2 },
+                    { x:0, y:0, z:0, w: 1 }
+                );
+                const offsetRefSpace = baseRefSpace.getOffsetReferenceSpace ( spawnOffset );
+                renderer.xr.setReferenceSpace( offsetRefSpace );
                 // Start XR
                 startXR( gltf.animations, gltf.scene );
             } );
@@ -516,7 +517,7 @@ function startXR( animations, model ) {
 
     // Add button labels to help users understand the controls (can be removed later)
     const playText = new ThreeMeshUI.Text({
-        content: "Play/Pause"
+        content: "PlayPause"
     });
 
     const buttonPlayLabel = new ThreeMeshUI.Block({
@@ -532,7 +533,7 @@ function startXR( animations, model ) {
     });
 
     buttonPlayLabel.add( playText );
-    buttonPlayLabel.position.set(0.023, -0.011, 0.03);
+    buttonPlayLabel.position.set(-0.003, -0.006, -0.01);
     buttonPlayLabel.rotateX( -Math.PI / 2 );
     controller1.add( buttonPlayLabel );
 
@@ -553,7 +554,7 @@ function startXR( animations, model ) {
     });
 
     buttonRestartLabel.add( restartText );
-    buttonRestartLabel.position.set(0.028, -0.011, 0.018);
+    buttonRestartLabel.position.set(-0.0055, -0.004, -0.024);
     buttonRestartLabel.rotateX( -Math.PI / 2 );
     controller1.add( buttonRestartLabel );
 
